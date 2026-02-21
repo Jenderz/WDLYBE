@@ -1,0 +1,6 @@
+{
+    "appId": "org.lyberate.admin",
+    "appName": "lyberate-frontend",
+    "webDir": "dist",
+    "bundledWebRuntime": false
+}
