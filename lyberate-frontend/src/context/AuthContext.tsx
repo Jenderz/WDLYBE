@@ -5,7 +5,7 @@ import {
     loadSession,
     saveSession,
     clearSession,
-    initializeStore,
+    initLocalStore,
 } from '../services/localStore';
 
 // Re-export for convenience
@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // On mount: initialize seed data if first time, then restore session
     useEffect(() => {
-        initializeStore();
+        initLocalStore();
         const session = loadSession();
         if (session) setUser(session);
     }, []);

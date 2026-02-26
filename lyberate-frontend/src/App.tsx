@@ -11,6 +11,7 @@ import { Agencies } from './pages/Agencies';
 import { Expenses } from './pages/Expenses';
 import { Login } from './pages/Login';
 import { VendorPortal } from './pages/VendorPortal';
+import { WeeklyClosing } from './pages/WeeklyClosing';
 
 // Preloader Genérico "Tecnología Lyberate"
 const GenericPreloader = () => {
@@ -103,6 +104,7 @@ const AppContent = () => {
                     <Route path="products" element={<ProtectedRoute allowedRoles={['Admin']}><Products /></ProtectedRoute>} />
                     <Route path="sellers" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Sellers /></ProtectedRoute>} />
                     <Route path="agencies" element={<ProtectedRoute allowedRoles={['Admin']}><Agencies /></ProtectedRoute>} />
+                    <Route path="weekly-closing" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><WeeklyClosing /></ProtectedRoute>} />
                     <Route path="reports" element={<UnderConstruction title="Reportes" />} />
                     <Route path="audits" element={<UnderConstruction title="Auditorías" />} />
                     <Route path="settings" element={<UnderConstruction title="Configuración" />} />

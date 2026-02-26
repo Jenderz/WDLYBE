@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, X, Plus, Globe } from 'lucide-react';
-import { getSellers, addSeller, addUser, Seller, Agency, Product, CurrencyConfig } from '../services/localStore';
+import { getSellers, addSeller, addUser, Seller, Product, getAvailableCurrencies, getGlobalProducts } from '../services/localStore';
 
 export const Sellers = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,88 +16,76 @@ export const Sellers = () => {
         password: '',
     });
 
-    // Temporary storage for agencies being added in the modal
-    const [agencies, setAgencies] = useState<Agency[]>([]);
-    const [currentAgencyName, setCurrentAgencyName] = useState('');
+    // Temporary storage for currencies being added in the modal
+    interface CurrencyGroup {
+        id: string;
+        name: string; // 'DOLAR', 'PESO COLOMBIANA', 'BOLIVARES VENEZOLANOS'
+        products: {
+            id: string;
+            name: string;
+            commissionPct: number;
+            partPct: number;
+        }[];
+    }
+    const [currenciesData, setCurrenciesData] = useState<CurrencyGroup[]>([]);
+    const [availableCurrencies, setAvailableCurrencies] = useState<string[]>([]);
+    const [globalProducts, setGlobalProducts] = useState<string[]>([]);
 
     useEffect(() => {
         setSellers(getSellers());
+        setAvailableCurrencies(getAvailableCurrencies());
+        setGlobalProducts(getGlobalProducts());
     }, []);
 
-    const handleAddAgency = () => {
-        if (!currentAgencyName) return;
-        const newAgency: Agency = {
-            id: `temp-a-${Date.now()}`,
-            name: currentAgencyName,
-            products: [] // Start with empty products
+    const handleAddCurrencyGroup = (currencyName: string) => {
+        if (!currencyName) return;
+        if (currenciesData.some(c => c.name === currencyName)) return; // prevent duplicates
+
+        const newGroup: CurrencyGroup = {
+            id: `temp-c-${Date.now()}`,
+            name: currencyName,
+            products: []
         };
-        setAgencies([...agencies, newAgency]);
-        setCurrentAgencyName('');
+        setCurrenciesData([...currenciesData, newGroup]);
     };
 
-    const handleAddProductToAgency = (agencyId: string, productName: string) => {
-        setAgencies(prev => prev.map(a => {
-            if (a.id !== agencyId) return a;
-            // Add product with no default currencies; user will add them
-            const newProd: Product = {
-                id: `temp-p-${Date.now()}`,
+    const handleRemoveCurrencyGroup = (groupId: string) => {
+        setCurrenciesData(prev => prev.filter(c => c.id !== groupId));
+    };
+
+    const handleAddProductToCurrency = (groupId: string, productName: string) => {
+        setCurrenciesData(prev => prev.map(c => {
+            if (c.id !== groupId) return c;
+            if (c.products.some(p => p.name === productName)) return c;
+
+            const newProd = {
+                id: `temp-p-${Date.now()}-${Math.random()}`,
                 name: productName,
-                currencies: []
+                commissionPct: 10,
+                partPct: 20
             };
-            return { ...a, products: [...a.products, newProd] };
+            return { ...c, products: [...c.products, newProd] };
         }));
     };
 
-    const handleAddCurrencyToProduct = (agencyId: string, productId: string, currencyName: string) => {
-        setAgencies(prev => prev.map(a => {
-            if (a.id !== agencyId) return a;
+    const handleRemoveProductFromCurrency = (groupId: string, productId: string) => {
+        setCurrenciesData(prev => prev.map(c => {
+            if (c.id !== groupId) return c;
             return {
-                ...a,
-                products: a.products.map(p => {
-                    if (p.id !== productId) return p;
-                    if (p.currencies.some(c => c.name === currencyName)) return p; // avoid duplicates
-                    const newCurr: CurrencyConfig = {
-                        id: `c-${Date.now()}-${Math.random()}`,
-                        name: currencyName,
-                        commissionPct: 10,
-                        partPct: 20
-                    };
-                    return { ...p, currencies: [...p.currencies, newCurr] };
-                })
+                ...c,
+                products: c.products.filter(p => p.id !== productId)
             };
         }));
     };
 
-    const handleRemoveCurrencyFromProduct = (agencyId: string, productId: string, currencyId: string) => {
-        setAgencies(prev => prev.map(a => {
-            if (a.id !== agencyId) return a;
+    const handleUpdateProductPercent = (groupId: string, productId: string, field: 'commissionPct' | 'partPct', value: number) => {
+        setCurrenciesData(prev => prev.map(c => {
+            if (c.id !== groupId) return c;
             return {
-                ...a,
-                products: a.products.map(p => {
+                ...c,
+                products: c.products.map(p => {
                     if (p.id !== productId) return p;
-                    return {
-                        ...p,
-                        currencies: p.currencies.filter(c => c.id !== currencyId)
-                    };
-                })
-            };
-        }));
-    };
-
-    const handleUpdateCommission = (agencyId: string, productId: string, currencyId: string, field: 'commissionPct' | 'partPct', value: number) => {
-        setAgencies(prev => prev.map(a => {
-            if (a.id !== agencyId) return a;
-            return {
-                ...a,
-                products: a.products.map(p => {
-                    if (p.id !== productId) return p;
-                    return {
-                        ...p,
-                        currencies: p.currencies.map(c => {
-                            if (c.id !== currencyId) return c;
-                            return { ...c, [field]: value };
-                        })
-                    };
+                    return { ...p, [field]: value };
                 })
             };
         }));
@@ -107,12 +95,37 @@ export const Sellers = () => {
         e.preventDefault();
         if (!formData.email || !formData.password || !formData.name) return;
 
+        // Map Currency -> Product back to the internal Agency -> Product -> Currency expected by localStore
+        // We will create exactly one "agencia principal" per vendor to store all these products
+
+        const productsMap = new Map<string, Product>();
+
+        // Reconstruct products
+        currenciesData.forEach(currencyGroup => {
+            currencyGroup.products.forEach(prod => {
+                const existingProduct = productsMap.get(prod.name) || {
+                    id: `p-${Date.now()}-${Math.random()}`,
+                    name: prod.name,
+                    currencies: []
+                };
+
+                existingProduct.currencies.push({
+                    id: `c-${Date.now()}-${Math.random()}`,
+                    name: currencyGroup.name,
+                    commissionPct: prod.commissionPct,
+                    partPct: prod.partPct
+                });
+
+                productsMap.set(prod.name, existingProduct);
+            });
+        });
+
         // 1. Create Seller Object
         const newSeller = addSeller({
             name: formData.name,
             idNumber: formData.idNumber,
             phone: formData.phone,
-            agencies: agencies.map(a => ({ ...a, id: `a-${Date.now()}-${Math.random()}` })), // generate final IDs
+            products: Array.from(productsMap.values()),
         });
 
         // 2. Create User Account
@@ -121,14 +134,13 @@ export const Sellers = () => {
             email: formData.email,
             password: formData.password,
             role: 'Vendedor',
-            sellerId: newSeller.id,
-            agencyName: agencies[0]?.name || 'Agencia Principal'
+            sellerId: newSeller.id
         });
 
         // Refresh and close
         setSellers(getSellers());
         setIsModalOpen(false);
-        setAgencies([]);
+        setCurrenciesData([]);
         setFormData({ name: '', idNumber: '', phone: '', email: '', password: '' });
     };
 
@@ -142,7 +154,7 @@ export const Sellers = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Vendedores</h1>
-                    <p className="text-sm text-ios-subtext mt-1">Configura jerarquía de agencias y comisiones</p>
+                    <p className="text-sm text-ios-subtext mt-1">Configura comisiones por moneda y producto</p>
                 </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
@@ -185,117 +197,105 @@ export const Sellers = () => {
                                 </div>
                             </div>
 
-                            {/* Section 2: Agencies and Products */}
+                            {/* Section 2: Structure -> Currencies then Products */}
                             <div className="space-y-4 pt-4 border-t border-black/5 dark:border-white/5">
-                                <h3 className="text-xs font-bold text-ios-blue uppercase tracking-widest">Estructura de Venta (Agencias y Productos)</h3>
+                                <h3 className="text-xs font-bold text-ios-blue uppercase tracking-widest">Estructura de Venta (Monedas y Productos)</h3>
 
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={currentAgencyName}
-                                        onChange={e => setCurrentAgencyName(e.target.value)}
-                                        className="flex-1 px-3 py-2 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent text-sm"
-                                        placeholder="Nombre de la Agencia (ej: Sede Norte)"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={handleAddAgency}
-                                        className="px-4 py-2 bg-ios-blue text-white rounded-xl text-xs font-bold hover:bg-blue-600"
+                                <div className="flex flex-col sm:flex-row gap-2 items-center">
+                                    <select
+                                        className="flex-1 w-full px-3 py-2 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent text-sm outline-none focus:border-ios-blue"
+                                        onChange={(e) => {
+                                            if (e.target.value) handleAddCurrencyGroup(e.target.value);
+                                            e.target.value = '';
+                                        }}
                                     >
-                                        + Agregar Agencia
-                                    </button>
+                                        <option value="">+ Seleccionar Moneda</option>
+                                        {availableCurrencies.filter(c => !currenciesData.some(cd => cd.name === c)).map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
-                                <div className="space-y-3">
-                                    {agencies.map(agency => (
-                                        <div key={agency.id} className="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 space-y-3">
-                                            <div className="flex justify-between items-center">
+                                <div className="space-y-4">
+                                    {currenciesData.map(group => (
+                                        <div key={group.id} className="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 space-y-4">
+                                            <div className="flex justify-between items-center pb-2 border-b border-black/5 dark:border-white/5">
                                                 <div className="flex items-center gap-2">
-                                                    <Globe size={14} className="text-ios-blue" />
-                                                    <span className="font-bold text-sm">{agency.name}</span>
+                                                    <Globe size={16} className={
+                                                        group.name === 'DOLAR' ? 'text-green-500' :
+                                                            group.name === 'PESO COLOMBIANA' ? 'text-yellow-500' : 'text-blue-500'
+                                                    } />
+                                                    <span className="font-bold text-sm tracking-tight">{group.name}</span>
                                                 </div>
-                                                <select
-                                                    className="text-xs bg-white dark:bg-black/40 rounded-lg px-2 py-1 outline-none border border-black/10 dark:border-white/10"
-                                                    onChange={(e) => {
-                                                        if (e.target.value) handleAddProductToAgency(agency.id, e.target.value);
-                                                        e.target.value = '';
-                                                    }}
-                                                >
-                                                    <option value="">+ Añadir Producto</option>
-                                                    <option value="PARLEY BETM3">PARLEY BETM3</option>
-                                                    <option value="ANIMALITOS">ANIMALITOS</option>
-                                                    <option value="LOTERIAS">LOTERIAS</option>
-                                                </select>
+                                                <div className="flex items-center gap-2">
+                                                    <select
+                                                        className="text-xs bg-ios-blue text-white font-bold rounded-lg px-2 py-1.5 outline-none cursor-pointer"
+                                                        onChange={(e) => {
+                                                            if (e.target.value) handleAddProductToCurrency(group.id, e.target.value);
+                                                            e.target.value = '';
+                                                        }}
+                                                    >
+                                                        <option value="">+ Producto</option>
+                                                        {globalProducts.filter(p => !group.products.some(gp => gp.name === p)).map(p => (
+                                                            <option key={p} value={p}>{p}</option>
+                                                        ))}
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveCurrencyGroup(group.id)}
+                                                        className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            {agency.products.map(prod => (
-                                                <div key={prod.id} className="ml-4 pl-4 border-l-2 border-ios-blue/30 space-y-3 py-2">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-bold text-ios-blue uppercase tracking-widest">{prod.name}</span>
-                                                        <select
-                                                            className="text-[10px] bg-ios-blue text-white rounded-lg px-2 py-1 outline-none font-bold cursor-pointer"
-                                                            onChange={(e) => {
-                                                                if (e.target.value === 'custom') {
-                                                                    const name = prompt('Ingrese el nombre de la divisa (ej: EUR, BRL):');
-                                                                    if (name) handleAddCurrencyToProduct(agency.id, prod.id, name);
-                                                                    e.target.value = '';
-                                                                } else if (e.target.value) {
-                                                                    handleAddCurrencyToProduct(agency.id, prod.id, e.target.value);
-                                                                    e.target.value = '';
-                                                                }
-                                                            }}
-                                                        >
-                                                            <option value="">+ Divisa</option>
-                                                            <option value="USD">USD</option>
-                                                            <option value="Bolívares">Bolívares</option>
-                                                            <option value="Peso COP">Peso COP</option>
-                                                            <option value="custom">Otro...</option>
-                                                        </select>
-                                                    </div>
-
+                                            <div className="space-y-3">
+                                                {group.products.length === 0 ? (
+                                                    <p className="text-xs text-ios-subtext italic">Seleccione un producto para configurar comisiones.</p>
+                                                ) : (
                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                        {prod.currencies.map(curr => (
-                                                            <div key={curr.id} className="bg-white/40 dark:bg-black/20 p-3 rounded-xl space-y-2 relative group/curr">
+                                                        {group.products.map(prod => (
+                                                            <div key={prod.id} className="bg-white/60 dark:bg-black/40 p-3 rounded-xl space-y-3 relative group/prod border border-black/5 dark:border-white/5">
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleRemoveCurrencyFromProduct(agency.id, prod.id, curr.id)}
-                                                                    className="absolute -top-1 -right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover/curr:opacity-100 transition-opacity shadow-sm"
+                                                                    onClick={() => handleRemoveProductFromCurrency(group.id, prod.id)}
+                                                                    className="absolute -top-1.5 -right-1.5 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover/prod:opacity-100 transition-opacity shadow-sm z-10"
                                                                 >
                                                                     <Trash2 size={10} />
                                                                 </button>
-                                                                <div className="flex justify-between items-center">
-                                                                    <span className="text-[10px] font-bold text-ios-subtext uppercase tracking-tighter">{curr.name}</span>
-                                                                </div>
-                                                                <div className="flex gap-2">
-                                                                    <div className="flex-1">
-                                                                        <label className="block text-[8px] text-ios-subtext uppercase font-bold">Comisión %</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            step="0.1"
-                                                                            value={curr.commissionPct}
-                                                                            onChange={e => handleUpdateCommission(agency.id, prod.id, curr.id, 'commissionPct', Number(e.target.value))}
-                                                                            className="w-full bg-transparent border-b border-black/10 dark:border-white/10 text-xs py-1 outline-none focus:border-ios-blue transition-colors"
-                                                                        />
+                                                                <div className="font-bold text-xs text-ios-text tracking-widest">{prod.name}</div>
+                                                                <div className="flex gap-3">
+                                                                    <div className="flex-1 space-y-1">
+                                                                        <label className="block text-[9px] text-ios-subtext uppercase font-bold">Comisión %</label>
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="number"
+                                                                                step="0.1"
+                                                                                value={prod.commissionPct}
+                                                                                onChange={e => handleUpdateProductPercent(group.id, prod.id, 'commissionPct', Number(e.target.value))}
+                                                                                className="w-full bg-black/5 dark:bg-white/5 rounded-lg text-xs py-1.5 px-2 outline-none focus:ring-1 focus:ring-ios-blue transition-all"
+                                                                            />
+                                                                        </div>
                                                                     </div>
-                                                                    <div className="flex-1">
-                                                                        <label className="block text-[8px] text-ios-subtext uppercase font-bold">Part. %</label>
-                                                                        <input
-                                                                            type="number"
-                                                                            step="0.1"
-                                                                            value={curr.partPct}
-                                                                            onChange={e => handleUpdateCommission(agency.id, prod.id, curr.id, 'partPct', Number(e.target.value))}
-                                                                            className="w-full bg-transparent border-b border-black/10 dark:border-white/10 text-xs py-1 outline-none focus:border-ios-blue transition-colors"
-                                                                        />
+                                                                    <div className="flex-1 space-y-1">
+                                                                        <label className="block text-[9px] text-ios-subtext uppercase font-bold">Participación %</label>
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="number"
+                                                                                step="0.1"
+                                                                                value={prod.partPct}
+                                                                                onChange={e => handleUpdateProductPercent(group.id, prod.id, 'partPct', Number(e.target.value))}
+                                                                                className="w-full bg-black/5 dark:bg-white/5 rounded-lg text-xs py-1.5 px-2 outline-none focus:ring-1 focus:ring-ios-blue transition-all"
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         ))}
                                                     </div>
-                                                    {prod.currencies.length === 0 && (
-                                                        <p className="text-[10px] text-ios-subtext italic ml-2">Agregue al menos una divisa para configurar comisiones.</p>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -341,47 +341,60 @@ export const Sellers = () => {
                         <thead>
                             <tr className="border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5">
                                 <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider">Vendedor</th>
-                                <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider">Agencias</th>
-                                <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider">Configuración</th>
+                                <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider">Productos Asignados</th>
+                                <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider">Monedas Operativas</th>
                                 <th className="px-6 py-4 text-xs font-bold text-ios-subtext uppercase tracking-wider text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5 dark:divide-white/5 text-sm">
-                            {filteredSellers.map(seller => (
-                                <tr key={seller.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group">
-                                    <td className="px-6 py-4">
-                                        <p className="font-bold">{seller.name}</p>
-                                        <p className="text-[10px] text-ios-subtext">{seller.idNumber} · {seller.phone}</p>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            {seller.agencies.map(a => (
-                                                <span key={a.id} className="text-xs font-medium bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-lg w-fit">
-                                                    {a.name} ({a.products.length} prods)
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {seller.agencies.flatMap(a => a.products).slice(0, 3).map(p => (
-                                                <span key={p.id} className="text-[10px] bg-ios-blue/10 text-ios-blue px-1.5 py-0.5 rounded font-bold">
-                                                    {p.name.split(' ')[0]}
-                                                </span>
-                                            ))}
-                                            {seller.agencies.flatMap(a => a.products).length > 3 && (
-                                                <span className="text-[10px] text-ios-subtext">+{seller.agencies.flatMap(a => a.products).length - 3}</span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                            <button className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {filteredSellers.map(seller => {
+                                // Extract products and unique currencies
+                                const products = seller.products || [];
+                                const uniqueCurrencies = Array.from(new Set(products.flatMap(p => p.currencies.map(c => c.name))));
+
+                                return (
+                                    <tr key={seller.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <p className="font-bold">{seller.name}</p>
+                                            <p className="text-[10px] text-ios-subtext">{seller.idNumber} · {seller.phone}</p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1">
+                                                {products.length === 0 ? (
+                                                    <span className="text-xs text-ios-subtext italic">Sin productos</span>
+                                                ) : (
+                                                    products.map(p => (
+                                                        <span key={p.id} className="text-xs font-medium bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-lg w-fit">
+                                                            {p.name}
+                                                        </span>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1">
+                                                {uniqueCurrencies.map(currencyName => (
+                                                    <span key={currencyName} className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${currencyName === 'DOLAR' ? 'bg-green-500/10 text-green-600 dark:text-green-500' :
+                                                        currencyName === 'PESO COLOMBIANA' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-500' :
+                                                            'bg-blue-500/10 text-blue-600 dark:text-blue-500'
+                                                        }`}>
+                                                        {currencyName}
+                                                    </span>
+                                                ))}
+                                                {uniqueCurrencies.length === 0 && (
+                                                    <span className="text-[10px] text-ios-subtext">-</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                                                <button className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

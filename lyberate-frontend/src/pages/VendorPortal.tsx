@@ -1,23 +1,48 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, CreditCard, LogOut, Plus, X, Upload,
     CheckCircle2, Clock, XCircle, TrendingUp, TrendingDown,
-    Wallet, Landmark, ChevronDown, Image, Receipt
+    Wallet, Landmark, ChevronDown, Image, Receipt, CalendarDays,
+    ArrowUpCircle, ArrowDownCircle, BarChart2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-    getPaymentsByVendor,
-    addPayment,
-    Payment,
-    PaymentMethod
+    getPaymentsByVendor, addPayment, getSales,
+    getWeeklyTicketsBySeller,
+    Payment, PaymentMethod, WeeklyTicket
 } from '../services/localStore';
 
 // ─── Mock vendor sales data (matches MOCK_SELLERS in Sales.tsx) ─────────────
 
-const MOCK_WEEKLY_SUMMARY: Record<string, { venta: number; premio: number; comision: number; total: number; part: number; totalVendedor: number; totalBanca: number }> = {
-    v1: { venta: 13289, premio: 2450, comision: 1328.90, total: 9510.10, part: 2377.53, totalVendedor: 3706.43, totalBanca: 7132.57 },
-    v2: { venta: 5600, premio: 800, comision: 336, total: 4464, part: 892.80, totalVendedor: 1228.80, totalBanca: 3571.20 },
+// Generador de semanas (Lun → Dom)
+const generateWeeklyPeriods = (count = 8) => {
+    const periods = [];
+    const today = new Date();
+    let mon = new Date(today);
+    const d = mon.getDay();
+    mon.setDate(mon.getDate() - d + (d === 0 ? -6 : 1));
+    mon.setHours(0, 0, 0, 0);
+    for (let i = 0; i < count; i++) {
+        const start = new Date(mon); start.setDate(start.getDate() - i * 7);
+        // Domingo = lunes + 6 días
+        const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23, 59, 59, 999);
+        const s = start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        const e = end.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+        periods.push({ id: `week-${i}`, label: `Lun ${s} — Dom ${e}`, startDate: start, endDate: end });
+    }
+    return periods;
+};
+
+// Badge Estado de Ticket
+const TicketStatusBadge = ({ status }: { status: WeeklyTicket['status'] }) => {
+    const map = {
+        open: { label: 'Abierta', cls: 'bg-orange-500/10 text-orange-500' },
+        pending: { label: 'Pendiente', cls: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' },
+        settled: { label: 'Liquidada', cls: 'bg-ios-green/10 text-ios-green' },
+    };
+    const { label, cls } = map[status];
+    return <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cls}`}>{label}</span>;
 };
 
 const BANKS = ['Banesco', 'Provincial (BBVA)', 'Mercantil', 'BNC', 'Banplus', 'Bicentenario', 'Otro'];
@@ -44,9 +69,11 @@ const StatusBadge = ({ status }: { status: Payment['status'] }) => {
 export const VendorPortal = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const weeklyPeriods = useMemo(() => generateWeeklyPeriods(), []);
 
-    const [tab, setTab] = useState<'dashboard' | 'payments'>('dashboard');
+    const [tab, setTab] = useState<'dashboard' | 'payments' | 'weeks'>('dashboard');
     const [payments, setPayments] = useState<Payment[]>([]);
+    const [weeklyTickets, setWeeklyTickets] = useState<WeeklyTicket[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Payment form state
@@ -63,16 +90,42 @@ export const VendorPortal = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const sellerId = user?.sellerId ?? '';
-    const summary = MOCK_WEEKLY_SUMMARY[sellerId] || {
-        venta: 0, premio: 0, comision: 0, total: 0, part: 0, totalVendedor: 0, totalBanca: 0
-    };
 
-    // Load payments from localStorage
-    const refreshPayments = () => {
-        if (user) setPayments(getPaymentsByVendor(user.id));
+    // ── Carga de datos ─────────────────────────────────────────────────────
+    const refreshData = () => {
+        if (user) {
+            setPayments(getPaymentsByVendor(user.id));
+            if (sellerId) setWeeklyTickets(getWeeklyTicketsBySeller(sellerId));
+        }
     };
+    useEffect(() => { refreshData(); }, [user]);
 
-    useEffect(() => { refreshPayments(); }, [user]);
+    // ── Ventas reales de la semana actual ──────────────────────────────────
+    const weekSales = useMemo(() => {
+        if (!sellerId) return { venta: 0, premio: 0, comision: 0, total: 0, part: 0, totalVendedor: 0, totalBanca: 0 };
+        const sales = getSales().filter(s => s.sellerId === sellerId && s.weekId === 'week-0');
+        return sales.reduce((acc, s) => ({
+            venta: acc.venta + s.amount,
+            premio: acc.premio + s.prize,
+            comision: acc.comision + s.commission,
+            total: acc.total + s.total,
+            part: acc.part + s.participation,
+            totalVendedor: acc.totalVendedor + s.totalVendor,
+            totalBanca: acc.totalBanca + s.totalBank,
+        }), { venta: 0, premio: 0, comision: 0, total: 0, part: 0, totalVendedor: 0, totalBanca: 0 });
+    }, [sellerId]);
+
+    // ── Ventas semana anterior (week-1) para estadísticas ──────────────────
+    const prevWeekSales = useMemo(() => {
+        if (!sellerId) return { venta: 0, totalBanca: 0, count: 0 };
+        const sales = getSales().filter(s => s.sellerId === sellerId && s.weekId === 'week-1');
+        return sales.reduce((acc, s) => ({ venta: acc.venta + s.amount, totalBanca: acc.totalBanca + s.totalBank, count: acc.count + 1 }), { venta: 0, totalBanca: 0, count: 0 });
+    }, [sellerId]);
+
+    const currWeekCount = useMemo(() => getSales().filter(s => s.sellerId === sellerId && s.weekId === 'week-0').length, [sellerId]);
+    const growth = prevWeekSales.venta > 0 ? ((weekSales.venta - prevWeekSales.venta) / prevWeekSales.venta) * 100 : null;
+    const avgTicket = currWeekCount > 0 ? weekSales.venta / currWeekCount : 0;
+    const summary = weekSales;
 
     const handleLogout = () => {
         logout();
@@ -101,12 +154,14 @@ export const VendorPortal = () => {
         e.preventDefault();
         if (!amount || !bank || !reference) { setFormError('Por favor completa todos los campos requeridos.'); return; }
         if (!user || !sellerId) return;
+        const currentWeek = weeklyPeriods[0];
         addPayment({
             vendorId: user.id,
             vendorName: user.name,
             agencyName: user.agencyName ?? '',
             sellerId,
-            week: 'Semana actual',
+            week: currentWeek?.label || 'Semana actual',
+            weekId: currentWeek?.id || 'week-0',
             amount: Number(amount),
             currency,
             bank,
@@ -125,7 +180,11 @@ export const VendorPortal = () => {
     // KPI helpers
     const totalPaid = payments.filter(p => p.status === 'approved').reduce((s, p) => s + p.amount, 0);
     const totalPending = payments.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
-    const debt = summary ? Math.max(0, summary.totalBanca - totalPaid) : 0;
+    // Estado de cuenta: totalBanca de semanas abiertas - totalPaid aprobado
+    const openTicketsBank = weeklyTickets.filter(t => t.status !== 'settled').reduce((s, t) => s + t.totalBank, 0);
+    const accountBalance = openTicketsBank || summary.totalBanca; // fallback a semana actual
+    const debt = Math.max(0, accountBalance - totalPaid);
+    const pendingWeeks = weeklyTickets.filter(t => t.status !== 'settled');
 
     return (
         <div className="min-h-screen bg-ios-bg dark:bg-black">
@@ -149,21 +208,19 @@ export const VendorPortal = () => {
             <div className="max-w-2xl mx-auto p-4 space-y-5">
                 {/* Tab Toggle */}
                 <div className="flex bg-black/5 dark:bg-white/5 rounded-2xl p-1 gap-1">
-                    <button
-                        onClick={() => setTab('dashboard')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${tab === 'dashboard' ? 'bg-white dark:bg-black shadow-sm text-ios-text' : 'text-ios-subtext hover:text-ios-text'}`}
-                    >
-                        <LayoutDashboard size={16} /> Mi Resumen
+                    <button onClick={() => setTab('dashboard')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${tab === 'dashboard' ? 'bg-white dark:bg-black shadow-sm text-ios-text' : 'text-ios-subtext'}`}>
+                        <LayoutDashboard size={15} /> Mi Resumen
                     </button>
-                    <button
-                        onClick={() => setTab('payments')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${tab === 'payments' ? 'bg-white dark:bg-black shadow-sm text-ios-text' : 'text-ios-subtext hover:text-ios-text'}`}
-                    >
-                        <CreditCard size={16} /> Mis Pagos
+                    <button onClick={() => setTab('payments')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${tab === 'payments' ? 'bg-white dark:bg-black shadow-sm text-ios-text' : 'text-ios-subtext'}`}>
+                        <CreditCard size={15} /> Mis Pagos
                         {payments.filter(p => p.status === 'pending').length > 0 && (
-                            <span className="bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                                {payments.filter(p => p.status === 'pending').length}
-                            </span>
+                            <span className="bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{payments.filter(p => p.status === 'pending').length}</span>
+                        )}
+                    </button>
+                    <button onClick={() => setTab('weeks')} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${tab === 'weeks' ? 'bg-white dark:bg-black shadow-sm text-ios-text' : 'text-ios-subtext'}`}>
+                        <CalendarDays size={15} /> Semanas
+                        {pendingWeeks.length > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">{pendingWeeks.length}</span>
                         )}
                     </button>
                 </div>
@@ -171,9 +228,46 @@ export const VendorPortal = () => {
                 {/* ── Dashboard Tab ─────────────────────────────────────────── */}
                 {tab === 'dashboard' && (
                     <div className="space-y-4 animate-fade-in">
+                        {/* Estado de Cuenta */}
+                        <div className={`p-4 rounded-2xl flex items-center gap-4 ${debt > 0 ? 'bg-red-500/10 border border-red-500/20' : 'bg-ios-green/10 border border-ios-green/20'}`}>
+                            {debt > 0
+                                ? <ArrowUpCircle size={28} className="text-red-500 shrink-0" />
+                                : <ArrowDownCircle size={28} className="text-ios-green shrink-0" />}
+                            <div className="flex-1">
+                                <p className="text-xs font-bold uppercase tracking-wider text-ios-subtext">Estado de Cuenta</p>
+                                {debt > 0
+                                    ? <p className="font-bold text-red-500 text-lg">Debes a la Banca: <span className="text-xl">${debt.toFixed(2)}</span></p>
+                                    : <p className="font-bold text-ios-green text-lg">{accountBalance > 0 ? '✅ Al día' : 'Sin deuda pendiente'}</p>}
+                            </div>
+                        </div>
+
+                        {/* Estadísticas rápidas */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="glass-panel p-3 rounded-2xl text-center">
+                                <p className="text-[10px] font-bold text-ios-subtext uppercase tracking-wider">Ventas Semana</p>
+                                <p className="text-lg font-bold mt-1">${weekSales.venta.toFixed(0)}</p>
+                                {growth !== null && (
+                                    <p className={`text-[10px] font-bold mt-0.5 flex items-center justify-center gap-0.5 ${growth >= 0 ? 'text-ios-green' : 'text-red-500'}`}>
+                                        {growth >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                                        {Math.abs(growth).toFixed(1)}% vs sem. ant.
+                                    </p>
+                                )}
+                            </div>
+                            <div className="glass-panel p-3 rounded-2xl text-center">
+                                <p className="text-[10px] font-bold text-ios-subtext uppercase tracking-wider">Ticket Promedio</p>
+                                <p className="text-lg font-bold mt-1">${avgTicket.toFixed(0)}</p>
+                                <p className="text-[10px] text-ios-subtext mt-0.5">{currWeekCount} entradas</p>
+                            </div>
+                            <div className="glass-panel p-3 rounded-2xl text-center">
+                                <BarChart2 size={16} className="text-ios-blue mx-auto mb-1" />
+                                <p className="text-[10px] font-bold text-ios-subtext uppercase tracking-wider">Semanas Pend.</p>
+                                <p className="text-lg font-bold mt-1">{pendingWeeks.length}</p>
+                            </div>
+                        </div>
+
                         <div>
-                            <h2 className="text-lg font-bold">Corte Semanal Actual</h2>
-                            <p className="text-xs text-ios-subtext">Lun 17 Feb - Lun 24 Feb</p>
+                            <h2 className="text-base font-bold">Corte Semanal Actual</h2>
+                            <p className="text-xs text-ios-subtext">{weeklyPeriods[0]?.label}</p>
                         </div>
 
                         {/* KPI Cards */}
@@ -246,6 +340,50 @@ export const VendorPortal = () => {
                                     <p className="text-sm font-bold text-orange-600 dark:text-orange-400">Pagos en revisión</p>
                                     <p className="text-xs text-ios-subtext">Tienes ${totalPending.toFixed(2)} en pagos esperando aprobación del admin.</p>
                                 </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ── Semanas Tab ────────────────────────────────────────────── */}
+                {tab === 'weeks' && (
+                    <div className="space-y-4 animate-fade-in">
+                        <h2 className="text-lg font-bold">Historial de Semanas</h2>
+                        {weeklyTickets.length === 0 ? (
+                            <div className="glass-panel p-10 rounded-2xl text-center text-ios-subtext">
+                                <CalendarDays size={32} className="mx-auto mb-3 opacity-30" />
+                                <p className="font-semibold">No hay tickets semanales aún</p>
+                                <p className="text-xs mt-1">El administrador los generará al cerrar cada semana.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {weeklyTickets.sort((a, b) => a.weekId.localeCompare(b.weekId)).map(ticket => (
+                                    <div key={ticket.id} className="glass-panel p-4 rounded-2xl">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="font-bold text-sm">{ticket.weekLabel}</p>
+                                                <p className="text-xs text-ios-subtext mt-0.5">{ticket.currency}</p>
+                                            </div>
+                                            <TicketStatusBadge status={ticket.status} />
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 mt-3">
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-ios-subtext font-bold uppercase">Venta</p>
+                                                <p className="font-bold text-sm mt-0.5">${ticket.totalSales.toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-ios-subtext font-bold uppercase">Total Banca</p>
+                                                <p className="font-bold text-sm mt-0.5 text-ios-green">${ticket.totalBank.toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-[10px] text-ios-subtext font-bold uppercase">Balance</p>
+                                                <p className={`font-bold text-sm mt-0.5 ${ticket.balance > 0 ? 'text-red-500' : 'text-ios-green'}`}>
+                                                    {ticket.balance > 0 ? `-$${ticket.balance.toFixed(2)}` : `+$${Math.abs(ticket.balance).toFixed(2)}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
