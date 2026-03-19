@@ -3,7 +3,7 @@ import { Search, Edit2, Trash2, X, Plus, Building2, Phone, Mail, MapPin, User } 
 import {
     getAgencies, addAgency, updateAgency, deleteAgency,
     getSellers, Agency, Seller
-} from '../services/localStore';
+} from '../services/apiService';
 
 // ─── Form vacío ───────────────────────────────────────────────────────────────
 const EMPTY_FORM = { name: '', address: '', phone: '', email: '', sellerId: '', sellerName: '' };
@@ -18,9 +18,10 @@ export const Agencies = () => {
     const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
     // ── Carga inicial ──────────────────────────────────────────────────────────
-    const refresh = () => {
-        setAgencies(getAgencies());
-        setSellers(getSellers());
+    const refresh = async () => {
+        const [ag, sel] = await Promise.all([getAgencies(), getSellers()]);
+        setAgencies(ag);
+        setSellers(sel);
     };
     useEffect(() => { refresh(); }, []);
 
@@ -40,13 +41,13 @@ export const Agencies = () => {
 
     const openEdit = (agency: Agency) => {
         setEditTarget(agency);
-        setForm({ name: agency.name, address: agency.address || '', phone: agency.phone || '', email: agency.email || '', sellerId: agency.sellerId, sellerName: agency.sellerName });
+        setForm({ name: agency.name, address: agency.address || '', phone: agency.phone || '', email: agency.email || '', sellerId: String(agency.sellerId), sellerName: agency.sellerName });
         setIsModalOpen(true);
     };
 
     // ── Selección de vendedor en form ──────────────────────────────────────────
     const handleSellerSelect = (id: string) => {
-        const seller = sellers.find(s => s.id === id);
+        const seller = sellers.find(s => String(s.id) === id);
         setForm(f => ({ ...f, sellerId: id, sellerName: seller?.name || '' }));
     };
 
@@ -259,7 +260,7 @@ export const Agencies = () => {
                                             {confirmDelete === agency.id ? (
                                                 <div className="flex items-center justify-end gap-2">
                                                     <span className="text-xs text-red-500 font-medium">¿Eliminar?</span>
-                                                    <button onClick={() => handleDelete(agency.id)} className="px-2.5 py-1 text-xs bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors">Sí</button>
+                                                    <button onClick={() => handleDelete(String(agency.id))} className="px-2.5 py-1 text-xs bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors">Sí</button>
                                                     <button onClick={() => setConfirmDelete(null)} className="px-2.5 py-1 text-xs bg-black/5 dark:bg-white/5 rounded-lg font-bold hover:bg-black/10 transition-colors">No</button>
                                                 </div>
                                             ) : (
@@ -267,7 +268,7 @@ export const Agencies = () => {
                                                     <button onClick={() => openEdit(agency)} className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors">
                                                         <Edit2 size={15} />
                                                     </button>
-                                                    <button onClick={() => setConfirmDelete(agency.id)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
+                                                    <button onClick={() => setConfirmDelete(String(agency.id))} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors">
                                                         <Trash2 size={15} />
                                                     </button>
                                                 </div>

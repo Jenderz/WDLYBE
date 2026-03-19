@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lyberate-cache-v1';
+const CACHE_NAME = 'lyberate-cache-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -15,6 +15,12 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+    // Solo permitimos interceptar y cachear peticiones GET
+    if (event.request.method !== 'GET') {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request).then((response) => {
             // Cache hit - return response

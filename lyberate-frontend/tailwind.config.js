@@ -12,14 +12,14 @@ export default {
             },
             colors: {
                 ios: {
-                    bg: '#F2F2F7',
+                    bg: '#F1F5F9', // Light blue-gray
                     card: '#FFFFFF',
-                    text: '#1C1C1E',
-                    subtext: '#8E8E93',
-                    blue: '#007AFF',
-                    red: '#FF3B30',
-                    green: '#34C759',
-                    separator: '#C6C6C8',
+                    text: '#0F172A',
+                    subtext: '#64748B',
+                    blue: '#E11D48', // Main World Deportes Red used for primary buttons
+                    red: '#9F1239',  // Darker Red for alerts
+                    green: '#10B981', // emerald
+                    separator: '#CBD5E1',
                 }
             },
             boxShadow: {

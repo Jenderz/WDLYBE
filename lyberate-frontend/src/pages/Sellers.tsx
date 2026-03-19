@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Search, Edit2, Trash2, X, Plus, Globe } from 'lucide-react';
-import { getSellers, addSeller, addUser, Seller, Product, getAvailableCurrencies, getGlobalProducts } from '../services/localStore';
+import { Search, Edit2, Trash2, X, Plus, Globe, Clock } from 'lucide-react';
+import {
+    getSellers, addSeller, addUser, Seller, Product,
+    getAvailableCurrencies, getGlobalProducts, updateSeller,
+    updateUser, deleteSeller, getUserBySellerId, deleteUserBySellerId
+} from '../services/apiService';
+import { SellerHistoryModal } from '../components/SellerHistoryModal';
 
 export const Sellers = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [sellers, setSellers] = useState<Seller[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [editingSellerId, setEditingSellerId] = useState<string | null>(null);
+    const [historySeller, setHistorySeller] = useState<{ id: string, name: string } | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -32,9 +39,13 @@ export const Sellers = () => {
     const [globalProducts, setGlobalProducts] = useState<string[]>([]);
 
     useEffect(() => {
-        setSellers(getSellers());
-        setAvailableCurrencies(getAvailableCurrencies());
-        setGlobalProducts(getGlobalProducts());
+        const load = async () => {
+            const [sel, currencies, products] = await Promise.all([getSellers(), getAvailableCurrencies(), getGlobalProducts()]);
+            setSellers(sel);
+            setAvailableCurrencies(currencies);
+            setGlobalProducts(products);
+        };
+        load();
     }, []);
 
     const handleAddCurrencyGroup = (currencyName: string) => {
@@ -91,14 +102,80 @@ export const Sellers = () => {
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingSellerId(null);
+        setCurrenciesData([]);
+        setFormData({ name: '', idNumber: '', phone: '', email: '', password: '' });
+    };
+
+    const handleEdit = async (seller: Seller) => {
+        setEditingSellerId(String(seller.id));
+        const user = await getUserBySellerId(String(seller.id));
+
+        setFormData({
+            name: seller.name,
+            idNumber: seller.idNumber || '',
+            phone: seller.phone || '',
+            email: user?.email || '',
+            password: user?.password || '',
+        });
+
+        // Reconstruct currenciesData
+        const newCurrenciesData: CurrencyGroup[] = [];
+
+        seller.products.forEach(p => {
+            p.currencies.forEach(c => {
+                let group = newCurrenciesData.find(g => g.name === c.name);
+                if (!group) {
+                    group = {
+                        id: `temp-c-${Date.now()}-${Math.random()}`,
+                        name: c.name,
+                        products: []
+                    };
+                    newCurrenciesData.push(group);
+                }
+                group.products.push({
+                    id: `temp-p-${Date.now()}-${Math.random()}`,
+                    name: p.name,
+                    commissionPct: c.commissionPct,
+                    partPct: c.partPct
+                });
+            });
+        });
+
+        setCurrenciesData(newCurrenciesData);
+        setIsModalOpen(true);
+    };
+
+    const handleDelete = async (seller: Seller) => {
+        if (window.confirm(`¿Estás seguro de que deseas eliminar al vendedor ${seller.name}?\nEsta acción es irreversible.`)) {
+            // Optimistic update
+            const previousSellers = [...sellers];
+            setSellers(sellers.filter(s => s.id !== seller.id));
+
+            try {
+                await deleteUserBySellerId(String(seller.id));
+                await deleteSeller(String(seller.id));
+                // Optional: sync again with server to be absolutely sure
+                const updatedSellers = await getSellers();
+                setSellers(updatedSellers);
+            } catch (err: any) {
+                // Rollback on error
+                setSellers(previousSellers);
+                alert(`Error al eliminar: ${err?.message || 'Error desconocido'}`);
+            }
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.email || !formData.password || !formData.name) return;
+        if (!formData.name) return;
 
-        // Map Currency -> Product back to the internal Agency -> Product -> Currency expected by localStore
-        // We will create exactly one "agencia principal" per vendor to store all these products
+        if (!editingSellerId && (!formData.email || !formData.password)) return;
 
-        const productsMap = new Map<string, Product>();
+        try {
+            const productsMap = new Map<string, Product>();
 
         // Reconstruct products
         currenciesData.forEach(currencyGroup => {
@@ -120,28 +197,52 @@ export const Sellers = () => {
             });
         });
 
-        // 1. Create Seller Object
-        const newSeller = addSeller({
-            name: formData.name,
-            idNumber: formData.idNumber,
-            phone: formData.phone,
-            products: Array.from(productsMap.values()),
-        });
+        if (editingSellerId) {
+            // 1. Update Seller Object
+            await updateSeller({
+                id: editingSellerId,
+                name: formData.name,
+                idNumber: formData.idNumber,
+                phone: formData.phone,
+                products: Array.from(productsMap.values()),
+                createdAt: sellers.find(s => String(s.id) === editingSellerId)?.createdAt || new Date().toISOString()
+            });
 
-        // 2. Create User Account
-        addUser({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            role: 'Vendedor',
-            sellerId: newSeller.id
-        });
+            // 2. Update User Object if exists
+            const user = await getUserBySellerId(editingSellerId);
+            if (user) {
+                await updateUser({
+                    ...user,
+                    name: formData.name,
+                    email: formData.email,
+                    password: formData.password,
+                });
+            }
+        } else {
+            // 1. Create Seller Object
+            const newSeller = await addSeller({
+                name: formData.name,
+                idNumber: formData.idNumber,
+                phone: formData.phone,
+                products: Array.from(productsMap.values()),
+            });
+
+            // 2. Create User Account
+            await addUser({
+                name: formData.name,
+                email: formData.email,
+                password: formData.password,
+                role: 'Vendedor',
+                sellerId: String(newSeller.id)
+            });
+        }
 
         // Refresh and close
-        setSellers(getSellers());
-        setIsModalOpen(false);
-        setCurrenciesData([]);
-        setFormData({ name: '', idNumber: '', phone: '', email: '', password: '' });
+        setSellers(await getSellers());
+        closeModal();
+        } catch (err: any) {
+            alert(`Error al guardar: ${err?.message || 'Error desconocido'}`);
+        }
     };
 
     const filteredSellers = sellers.filter(s =>
@@ -157,7 +258,10 @@ export const Sellers = () => {
                     <p className="text-sm text-ios-subtext mt-1">Configura comisiones por moneda y producto</p>
                 </div>
                 <button
-                    onClick={() => setIsModalOpen(true)}
+                    onClick={() => {
+                        closeModal(); // Ensure state is fresh
+                        setIsModalOpen(true);
+                    }}
                     className="flex items-center gap-2 px-4 py-2 bg-ios-blue text-white rounded-xl text-sm font-semibold shadow-md hover:bg-blue-600 transition-all"
                 >
                     <Plus size={16} /> Nuevo Vendedor
@@ -167,11 +271,13 @@ export const Sellers = () => {
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
                     <div className="bg-ios-bg dark:bg-[#1c1c1e] w-full max-w-2xl rounded-[2rem] p-6 relative shadow-2xl overflow-hidden border border-white/20 max-h-[90vh] overflow-y-auto no-scrollbar">
-                        <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 p-2 text-ios-subtext hover:text-ios-text z-10 bg-black/5 dark:bg-white/5 rounded-full">
+                        <button onClick={closeModal} className="absolute top-4 right-4 p-2 text-ios-subtext hover:text-ios-text z-10 bg-black/5 dark:bg-white/5 rounded-full">
                             <X size={20} />
                         </button>
 
-                        <h2 className="text-xl font-bold mb-6">Registro de Nuevo Vendedor</h2>
+                        <h2 className="text-xl font-bold mb-6">
+                            {editingSellerId ? 'Editar Perfil del Vendedor' : 'Registro de Nuevo Vendedor'}
+                        </h2>
 
                         <form onSubmit={handleSubmit} className="space-y-6">
                             {/* Section 1: User Info */}
@@ -304,7 +410,7 @@ export const Sellers = () => {
                             <div className="pt-6 flex gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setIsModalOpen(false)}
+                                    onClick={closeModal}
                                     className="flex-1 py-3 rounded-xl bg-black/5 dark:bg-white/5 font-bold hover:bg-black/10 transition-all text-sm"
                                 >
                                     Cancelar
@@ -313,7 +419,7 @@ export const Sellers = () => {
                                     type="submit"
                                     className="flex-[2] py-3 rounded-xl bg-ios-blue text-white font-bold hover:bg-blue-600 active:scale-95 transition-all shadow-lg text-sm"
                                 >
-                                    Guardar Perfil Completo
+                                    {editingSellerId ? 'Actualizar Perfil' : 'Guardar Perfil Completo'}
                                 </button>
                             </div>
                         </form>
@@ -388,8 +494,9 @@ export const Sellers = () => {
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                                <button className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                                <button onClick={() => setHistorySeller({ id: String(seller.id), name: seller.name })} title="Ver Historial" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Clock size={16} /></button>
+                                                <button onClick={() => handleEdit(seller)} title="Editar" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                                                <button onClick={() => handleDelete(seller)} title="Eliminar" className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -399,6 +506,14 @@ export const Sellers = () => {
                     </table>
                 </div>
             </div>
+
+            {historySeller && (
+                <SellerHistoryModal
+                    sellerId={historySeller.id}
+                    sellerName={historySeller.name}
+                    onClose={() => setHistorySeller(null)}
+                />
+            )}
         </div>
     );
 };

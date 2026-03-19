@@ -1,39 +1,44 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Menu, X, Bell, LogOut } from 'lucide-react';
+import { Menu, X, Bell, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { ADMIN_MENU_ITEMS } from '../config/menu';
 import { useAuth } from '../context/AuthContext';
 
 export const DashboardLayout = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(true);
     const location = useLocation();
     const { user, logout } = useAuth();
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
     const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const toggleDesktopMenu = () => setIsDesktopMenuOpen(!isDesktopMenuOpen);
 
     return (
         <div className="flex h-screen w-full bg-ios-bg dark:bg-black overflow-hidden relative">
 
             {/* --- SIDEBAR (Desktop) / DRAWER (Mobile) --- */}
             <aside
-                className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                    } md:translate-x-0 fixed md:static inset-y-0 left-0 z-50 w-72 transition-transform duration-300 ease-in-out`}
+                className={`fixed md:relative inset-y-0 left-0 z-50 h-full transition-all duration-300 ease-in-out shrink-0
+                    ${isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} 
+                    md:translate-x-0
+                    ${isDesktopMenuOpen ? 'md:w-72' : 'md:w-20'} 
+                `}
             >
                 {/* Glassmorphism Panel */}
-                <div className="h-full w-full glass-panel dark:bg-black/80 flex flex-col md:border-r border-black/5 dark:border-white/10 shadow-glass">
+                <div className="h-full w-full glass-panel dark:bg-black/80 flex flex-col md:border-r border-black/5 dark:border-white/10 shadow-glass overflow-hidden">
 
                     {/* Logo Area */}
-                    <div className="p-6 flex items-center justify-between">
+                    <div className={`p-6 flex items-center ${isDesktopMenuOpen ? 'justify-between' : 'justify-center md:px-0'}`}>
                         <div className="flex items-center gap-3">
                             <img
-                                src="https://orgemac.com/api/uploads/img_1767849584_a1254615.png"
-                                alt="Lyberate Logo"
-                                className="w-10 h-10 object-contain drop-shadow-md"
+                                src="https://freanpartners.com/upload/logoworlddeportes.webp"
+                                alt="WORLD DEPORTES Logo"
+                                className="w-10 h-10 object-contain drop-shadow-md shrink-0"
                             />
-                            <div>
-                                <h1 className="font-bold text-lg tracking-tight">Lyberate</h1>
-                                <p className="text-[10px] text-ios-subtext uppercase tracking-widest font-semibold">Admin Panel</p>
+                            <div className={`transition-all duration-300 flex flex-col ${isDesktopMenuOpen ? 'opacity-100 w-[140px]' : 'md:opacity-0 md:w-0 overflow-hidden'}`}>
+                                <h1 className="font-bold text-lg tracking-tight whitespace-nowrap">WORLD DEPORTES</h1>
+                                <p className="text-[10px] text-ios-subtext uppercase tracking-widest font-semibold whitespace-nowrap">Admin Panel</p>
                             </div>
                         </div>
                         {/* Close Button on Mobile */}
@@ -43,7 +48,7 @@ export const DashboardLayout = () => {
                     </div>
 
                     {/* Navigation Menu */}
-                    <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-2 space-y-1">
+                    <div className={`flex-1 overflow-y-auto no-scrollbar py-2 space-y-1 transition-all duration-300 ${isDesktopMenuOpen ? 'px-4' : 'px-4 md:px-3'}`}>
                         {ADMIN_MENU_ITEMS.map((item, index) => {
                             if (item.isSeparator) {
                                 return <div key={`sep-${index}`} className="my-4 border-t border-black/5 dark:border-white/5 mx-2"></div>;
@@ -59,30 +64,32 @@ export const DashboardLayout = () => {
                                     key={item.id}
                                     to={item.path}
                                     onClick={closeMobileMenu}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
-                                            ? 'bg-ios-blue text-white shadow-md font-semibold'
-                                            : 'text-ios-text/80 hover:bg-black/5 dark:hover:bg-white/5'
+                                    title={!isDesktopMenuOpen ? item.label : undefined}
+                                    className={`flex items-center py-3 rounded-xl transition-all duration-200 ${isDesktopMenuOpen ? 'gap-3 px-4' : 'px-4 md:px-0 md:justify-center md:gap-0'} ${isActive
+                                        ? 'bg-ios-blue text-white shadow-md font-semibold'
+                                        : 'text-ios-text/80 hover:bg-black/5 dark:hover:bg-white/5'
                                         }`}
                                 >
-                                    <Icon size={20} className={isActive ? 'opacity-100' : 'opacity-70'} />
-                                    <span className="text-sm">{item.label}</span>
+                                    <Icon size={20} className={`shrink-0 ${isActive ? 'opacity-100' : 'opacity-70'}`} />
+                                    <span className={`text-sm whitespace-nowrap transition-all duration-300 ${isDesktopMenuOpen ? 'opacity-100 w-auto' : 'md:opacity-0 md:w-0 overflow-hidden'}`}>{item.label}</span>
                                 </NavLink>
                             );
                         })}
                     </div>
 
                     {/* User Profile Mini */}
-                    <div className="p-4 mt-auto">
+                    <div className={`mt-auto transition-all duration-300 ${isDesktopMenuOpen ? 'p-4' : 'p-4 md:p-3'}`}>
                         <div
                             onClick={logout}
-                            className="flex items-center gap-3 p-3 rounded-xl bg-black/5 dark:bg-white/5 cursor-pointer hover:bg-ios-red/10 group transition-colors"
+                            title={!isDesktopMenuOpen ? "Cerrar sesión" : undefined}
+                            className={`flex items-center rounded-xl bg-black/5 dark:bg-white/5 cursor-pointer hover:bg-ios-red/10 group transition-all duration-300 ${isDesktopMenuOpen ? 'gap-3 p-3' : 'p-3 md:p-2 md:justify-center md:gap-0'}`}
                         >
-                            <div className="w-10 h-10 rounded-full bg-ios-blue/10 group-hover:bg-ios-red/20 flex items-center justify-center text-ios-blue group-hover:text-ios-red transition-colors">
+                            <div className="w-10 h-10 rounded-full shrink-0 bg-ios-blue/10 group-hover:bg-ios-red/20 flex items-center justify-center text-ios-blue group-hover:text-ios-red transition-colors">
                                 <LogOut size={20} />
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold truncate group-hover:text-ios-red transition-colors">{user?.name || 'Usuario'}</p>
-                                <p className="text-xs text-ios-subtext truncate group-hover:text-ios-red/70">{user?.role || 'Vendedor'}</p>
+                            <div className={`min-w-0 flex flex-col transition-all duration-300 ${isDesktopMenuOpen ? 'opacity-100 w-[120px]' : 'md:opacity-0 md:w-0 overflow-hidden'}`}>
+                                <p className="text-sm font-bold truncate group-hover:text-ios-red transition-colors whitespace-nowrap">{user?.name || 'Usuario'}</p>
+                                <p className="text-xs text-ios-subtext truncate group-hover:text-ios-red/70 whitespace-nowrap">{user?.role || 'Vendedor'}</p>
                             </div>
                         </div>
                     </div>
@@ -101,15 +108,24 @@ export const DashboardLayout = () => {
             <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
 
                 {/* Top Header */}
-                <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 glass-panel md:bg-transparent md:backdrop-filter-none md:border-none z-30 sticky top-0">
-                    <div className="flex items-center">
+                <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 glass-panel md:bg-transparent md:backdrop-filter-none md:border-none z-30 sticky top-0 transition-all duration-300">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={toggleMobileMenu}
-                            className="md:hidden p-2 mr-4 text-ios-text bg-white dark:bg-black/50 rounded-lg shadow-sm"
+                            className="md:hidden p-2 text-ios-text bg-white dark:bg-black/50 rounded-lg shadow-sm"
                         >
                             <Menu size={20} />
                         </button>
-                        <h2 className="text-xl font-bold hidden md:block">Panel de Control</h2>
+
+                        <button
+                            onClick={toggleDesktopMenu}
+                            className="hidden md:flex p-2 text-ios-subtext hover:text-ios-text hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors"
+                            title={isDesktopMenuOpen ? "Ocultar menú" : "Mostrar menú"}
+                        >
+                            {isDesktopMenuOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
+                        </button>
+
+                        <h2 className="text-xl font-bold hidden md:block text-ios-text tracking-tight ml-1 w-full max-w-[200px] truncate">Panel de Control</h2>
                     </div>
 
                     <div className="flex items-center gap-4">

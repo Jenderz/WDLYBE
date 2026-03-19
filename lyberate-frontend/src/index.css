@@ -15,7 +15,7 @@ body {
 }
 
 .dark body {
-  background-color: #000000;
+  background-color: #060A18; /* Deep Midnight Blue for Sports Theme */
 }
 
 input, textarea, .prose {

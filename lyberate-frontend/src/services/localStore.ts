@@ -12,17 +12,18 @@ export interface AppUser {
     agencyName?: string;
 }
 
+export interface SystemPrefs {
+    companyName: string;
+    ticketFooterMessage: string;
+    riskLimitAlert: number;
+    baseCurrency: string;
+}
+
 export interface CurrencyConfig {
     id: string;
     name: string;
     commissionPct: number;
     partPct: number;
-}
-
-export interface Product {
-    id: string;
-    name: string;
-    currencies: CurrencyConfig[];
 }
 
 export interface Product {
@@ -42,6 +43,7 @@ export interface Seller {
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentMethod = 'Transferencia' | 'Zelle' | 'Pago Móvil' | 'Efectivo' | 'Otro';
+export type PaymentType = 'payment' | 'credit'; // 'payment': vendedor paga a banca; 'credit': banca debe al vendedor
 
 export interface Payment {
     id: string;
@@ -51,19 +53,23 @@ export interface Payment {
     sellerId: string;       // links to Seller.id
     week: string;           // label e.g. "Lun 17 Feb - Lun 24 Feb"
     weekId: string;         // identifier e.g. "week-0"
-    amount: number;
+    amount: number;         // Siempre positivo (absoluto)
     currency: string;
     bank: string;
     method: PaymentMethod;
     reference: string;
     date: string;
     status: PaymentStatus;
+    type?: PaymentType;     // 'payment' (default) o 'credit'
     proofImageBase64?: string; // base64 encoded image
     proofMimeType?: string;
     adminNote?: string;
     createdAt: string;      // ISO timestamp
     updatedAt: string;
 }
+
+// ─── Utility Imports ──────────────────────────────────────────────────────────
+import { roundFinance } from '../utils/finance';
 
 export interface Sale {
     id: string;
@@ -122,6 +128,20 @@ export interface WeeklyTicket {
     updatedAt: string;
 }
 
+// Gasto operativo o fijo
+export type ExpenseType = 'Operativo' | 'Nomina' | 'Servicios' | 'Otros';
+export interface Expense {
+    id: string;
+    date: string;           // YYYY-MM-DD
+    type: ExpenseType;
+    concept: string;
+    method: PaymentMethod;
+    bank: string;
+    amount: number;
+    currency: string;       // 'USD' | 'Bs.' | 'COP'
+    createdAt: string;
+}
+
 // ─── Keys ─────────────────────────────────────────────────────────────────────
 
 const KEYS = {
@@ -134,47 +154,81 @@ const KEYS = {
     SALES: 'lyberate_sales',
     AGENCIES: 'lyberate_agencies',
     WEEKLY_TICKETS: 'lyberate_weekly_tickets',
+    EXPENSES: 'lyberate_expenses',
+    SYSTEM_PREFS: 'lyberate_system_prefs',
     SEEDED_V2: 'lyberate_seeded_v2',
 } as const;
 
+// ─── Weekly Period Utils (Central) ────────────────────────────────────────────
+
+/** Convierte cualquier fecha (YYYY-MM-DD o Date) al weekId del lunes de esa semana.
+ *  Formato: week-YYYY-MM-DD  e.g. "week-2026-02-23"
+ */
+export const dateToWeekId = (date: string | Date): string => {
+    const d = typeof date === 'string' ? new Date(date + 'T12:00:00') : new Date(date);
+    const day = d.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+    const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+    d.setDate(d.getDate() + diff);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `week-${y}-${m}-${dd}`;
+};
+
+export interface WeekPeriod {
+    id: string;       // "week-YYYY-MM-DD"
+    label: string;    // "Lun 23 feb — Dom 01 mar"
+    startDate: Date;  // Monday 00:00:00
+    endDate: Date;    // Sunday 23:59:59.999
+}
+
+/** Genera períodos semanales Lun→Dom.
+ *  - Incluye las últimas `defaultCount` semanas desde hoy.
+ *  - También incluye cualquier semana adicional derivada de `extraDates`.
+ *  - Ordenadas de más reciente a más antigua.
+ */
+export const getWeeklyPeriods = (extraDates: string[] = [], defaultCount = 8): WeekPeriod[] => {
+    const weekIds = new Set<string>();
+
+    // Generar últimas N semanas desde hoy
+    const today = new Date();
+    for (let i = 0; i < defaultCount; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i * 7);
+        weekIds.add(dateToWeekId(d));
+    }
+
+    // Añadir semanas de fechas externas (ventas, pagos, etc.)
+    for (const dateStr of extraDates) {
+        if (dateStr) weekIds.add(dateToWeekId(dateStr));
+    }
+
+    const fmt = (d: Date) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+
+    const periods: WeekPeriod[] = Array.from(weekIds).map(id => {
+        // Parse date from id: "week-2026-02-23" → 2026-02-23
+        const datePart = id.replace('week-', '');
+        const start = new Date(datePart + 'T00:00:00');
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return {
+            id,
+            label: `Lun ${fmt(start)} — Dom ${fmt(end)}`,
+            startDate: start,
+            endDate: end,
+        };
+    });
+
+    // Sort descending (most recent first)
+    periods.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+    return periods;
+};
+
+
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
-const SEED_SELLERS: Seller[] = [
-    {
-        id: 'v1',
-        name: 'Jhon Doe',
-        idNumber: 'V-12345678',
-        phone: '0414-0000000',
-        createdAt: new Date('2026-01-01').toISOString(),
-        products: [
-            {
-                id: 'p1',
-                name: 'PARLEY BETM3',
-                currencies: [
-                    { id: 'c1', name: 'USD', commissionPct: 10, partPct: 25 },
-                    { id: 'c2', name: 'Bolívares', commissionPct: 10, partPct: 40 },
-                ]
-            }
-        ]
-    },
-    {
-        id: 'v2',
-        name: 'EL YUCA',
-        idNumber: 'V-87654321',
-        phone: '0412-1111111',
-        createdAt: new Date('2026-01-10').toISOString(),
-        products: [
-            {
-                id: 'p2',
-                name: 'ANIMALITOS',
-                currencies: [
-                    { id: 'c3', name: 'USD', commissionPct: 15, partPct: 20 },
-                    { id: 'c4', name: 'Bolívares', commissionPct: 15, partPct: 35 },
-                ]
-            }
-        ]
-    }
-];
+const SEED_SELLERS: Seller[] = [];
 
 const SEED_USERS: AppUser[] = [
     {
@@ -183,47 +237,10 @@ const SEED_USERS: AppUser[] = [
         email: 'admin@lyberate.com',
         password: 'admin123',
         role: 'Admin',
-    },
-    {
-        id: 'u-003',
-        name: 'Jhon Doe',
-        email: 'jhon@lyberate.com',
-        password: 'vend123',
-        role: 'Vendedor',
-        sellerId: 'v1',
-        agencyName: 'Agencia Centro',
-    },
-    {
-        id: 'u-004',
-        name: 'EL YUCA',
-        email: 'yuca@lyberate.com',
-        password: 'vend456',
-        role: 'Vendedor',
-        sellerId: 'v2',
-        agencyName: 'Agencia Yuca',
-    },
+    }
 ];
 
-const SEED_PAYMENTS: Payment[] = [
-    {
-        id: 'pay-001',
-        vendorId: 'u-003',
-        vendorName: 'Jhon Doe',
-        agencyName: 'Agencia Centro',
-        sellerId: 'v1',
-        week: 'Semana actual',
-        weekId: 'week-0',
-        amount: 850.00,
-        currency: 'USD',
-        bank: 'Banesco',
-        method: 'Transferencia',
-        reference: 'REF-20240201-001',
-        date: '2026-02-17',
-        status: 'approved',
-        createdAt: new Date('2026-02-17').toISOString(),
-        updatedAt: new Date('2026-02-18').toISOString(),
-    },
-];
+const SEED_PAYMENTS: Payment[] = [];
 
 const SEED_SALES: Sale[] = [];
 
@@ -241,14 +258,32 @@ export const initLocalStore = () => {
         localStorage.setItem(KEYS.SALES, JSON.stringify(SEED_SALES));
         localStorage.setItem(KEYS.AGENCIES, JSON.stringify([]));
         localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify([]));
+        localStorage.setItem(KEYS.EXPENSES, JSON.stringify([]));
+        localStorage.setItem(KEYS.SYSTEM_PREFS, JSON.stringify({
+            companyName: 'WORLD DEPORTES',
+            ticketFooterMessage: '¡Gracias por su jugada! El ticket caduca a los 3 días.',
+            riskLimitAlert: 500,
+            baseCurrency: 'DOLAR',
+        }));
         localStorage.setItem(KEYS.SEEDED_V2, 'true');
     } else {
         // Ensure properties exist for older seeded data
+        if (!localStorage.getItem(KEYS.USERS) || JSON.parse(localStorage.getItem(KEYS.USERS) || '[]').length === 0) {
+            localStorage.setItem(KEYS.USERS, JSON.stringify(SEED_USERS));
+        }
         if (!localStorage.getItem(KEYS.CURRENCIES)) {
             localStorage.setItem(KEYS.CURRENCIES, JSON.stringify(['DOLAR', 'PESO COLOMBIANA', 'BOLIVARES VENEZOLANOS']));
         }
         if (!localStorage.getItem(KEYS.GLOBAL_PRODUCTS)) {
             localStorage.setItem(KEYS.GLOBAL_PRODUCTS, JSON.stringify(['PARLEY BETM3', 'ANIMALITOS', 'LOTERIAS', 'AMERICANAS']));
+        }
+        if (!localStorage.getItem(KEYS.SYSTEM_PREFS)) {
+            localStorage.setItem(KEYS.SYSTEM_PREFS, JSON.stringify({
+                companyName: 'WORLD DEPORTES',
+                ticketFooterMessage: '¡Gracias por su jugada! El ticket caduca a los 3 días.',
+                riskLimitAlert: 500,
+                baseCurrency: 'DOLAR',
+            }));
         }
         if (!localStorage.getItem(KEYS.SALES)) {
             localStorage.setItem(KEYS.SALES, JSON.stringify([]));
@@ -258,6 +293,9 @@ export const initLocalStore = () => {
         }
         if (!localStorage.getItem(KEYS.WEEKLY_TICKETS)) {
             localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(KEYS.EXPENSES)) {
+            localStorage.setItem(KEYS.EXPENSES, JSON.stringify([]));
         }
     }
 };
@@ -281,6 +319,38 @@ export function addUser(user: Omit<AppUser, 'id'>): AppUser {
     return newUser;
 }
 
+export function updateUser(updated: AppUser) {
+    const users = getUsers();
+    const idx = users.findIndex(u => u.id === updated.id);
+    if (idx !== -1) {
+        users[idx] = updated;
+        localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    }
+}
+
+export function getUserBySellerId(sellerId: string): AppUser | undefined {
+    return getUsers().find(u => u.sellerId === sellerId);
+}
+
+export function deleteUserBySellerId(sellerId: string) {
+    let users = getUsers();
+    users = users.filter(u => u.sellerId !== sellerId);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+}
+
+export function deleteUser(userId: string) {
+    let users = getUsers();
+    // Prevent deleting the very last admin for safety
+    if (users.find(u => u.id === userId)?.role === 'Admin') {
+        const adminCount = users.filter(u => u.role === 'Admin').length;
+        if (adminCount <= 1) return false; // Prevent deletion
+    }
+
+    users = users.filter(u => u.id !== userId);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    return true;
+}
+
 // ─── Session Helpers ──────────────────────────────────────────────────────────
 
 export function saveSession(user: AppUser) {
@@ -299,7 +369,19 @@ export function clearSession() {
 // ─── Seller Helpers ───────────────────────────────────────────────────────────
 
 export function getSellers(): Seller[] {
-    return JSON.parse(localStorage.getItem(KEYS.SELLERS) || '[]');
+    const raw: Seller[] = JSON.parse(localStorage.getItem(KEYS.SELLERS) || '[]');
+    // Normalizar porcentajes a número (protección contra datos guardados como string)
+    return raw.map(s => ({
+        ...s,
+        products: (s.products || []).map(p => ({
+            ...p,
+            currencies: (p.currencies || []).map(c => ({
+                ...c,
+                commissionPct: Number(c.commissionPct ?? 0),
+                partPct: Number(c.partPct ?? 0),
+            })),
+        })),
+    }));
 }
 
 export function addSeller(seller: Omit<Seller, 'id' | 'createdAt'>): Seller {
@@ -322,6 +404,12 @@ export function updateSeller(updated: Seller) {
     localStorage.setItem(KEYS.SELLERS, JSON.stringify(sellers));
 }
 
+export function deleteSeller(sellerId: string) {
+    let sellers = getSellers();
+    sellers = sellers.filter(s => s.id !== sellerId);
+    localStorage.setItem(KEYS.SELLERS, JSON.stringify(sellers));
+}
+
 // ─── Payment Helpers ──────────────────────────────────────────────────────────
 
 export const getPayments = (): Payment[] => {
@@ -336,12 +424,20 @@ export const addPayment = (payment: Omit<Payment, 'id' | 'createdAt' | 'updatedA
     const payments = getPayments();
     const newPayment: Payment = {
         ...payment,
+        type: payment.type ?? 'payment',    // Default: pago normal
+        amount: Math.abs(payment.amount),   // Siempre positivo
         id: `pay-${Date.now()}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     };
     payments.push(newPayment);
     localStorage.setItem(KEYS.PAYMENTS, JSON.stringify(payments));
+
+    // Solo los pagos tipo 'payment' afectan el totalPaid del WeeklyTicket
+    if (newPayment.status === 'approved' && newPayment.type !== 'credit') {
+        applyPaymentToWeeklyTicket(newPayment);
+    }
+
     return newPayment;
 };
 
@@ -349,13 +445,81 @@ export const updatePaymentStatus = (paymentId: string, status: PaymentStatus, ad
     const payments = getPayments();
     const index = payments.findIndex(p => p.id === paymentId);
     if (index !== -1) {
-        payments[index].status = status;
-        if (adminNote) payments[index].adminNote = adminNote;
-        payments[index].updatedAt = new Date().toISOString();
+        const payment = payments[index];
+        const oldStatus = payment.status;
+
+        payment.status = status;
+        if (adminNote) payment.adminNote = adminNote;
+        payment.updatedAt = new Date().toISOString();
         localStorage.setItem(KEYS.PAYMENTS, JSON.stringify(payments));
+
+        // Solo los pagos tipo 'payment' afectan el WeeklyTicket
+        if (payment.type !== 'credit') {
+            if (oldStatus !== 'approved' && status === 'approved') {
+                applyPaymentToWeeklyTicket(payment);
+            } else if (oldStatus === 'approved' && status !== 'approved') {
+                applyPaymentToWeeklyTicket(payment, true); // Reverse
+            }
+        }
+
         return true;
     }
     return false;
+};
+
+// Intentionally not exported, used internally
+function applyPaymentToWeeklyTicket(payment: Payment, reverse = false) {
+    const tickets: WeeklyTicket[] = JSON.parse(localStorage.getItem(KEYS.WEEKLY_TICKETS) || '[]');
+    const idx = tickets.findIndex(
+        t => t.sellerId === payment.sellerId && t.weekId === payment.weekId && t.currency === payment.currency
+    );
+
+    const amount = reverse ? -payment.amount : payment.amount;
+
+    if (idx !== -1) {
+        tickets[idx].totalPaid = roundFinance(tickets[idx].totalPaid + amount);
+        tickets[idx].balance = roundFinance(tickets[idx].totalBank - tickets[idx].totalPaid);
+        tickets[idx].updatedAt = new Date().toISOString();
+        localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify(tickets));
+    } else if (!reverse) {
+        const newTicket: WeeklyTicket = {
+            id: `wt-${Date.now()}`,
+            sellerId: payment.sellerId,
+            sellerName: payment.vendorName,
+            weekId: payment.weekId,
+            weekLabel: payment.week,
+            totalSales: 0,
+            totalPrize: 0,
+            totalCommission: 0,
+            totalNet: 0,
+            totalParticipation: 0,
+            totalVendor: 0,
+            totalBank: 0,
+            totalPaid: roundFinance(amount),
+            balance: roundFinance(-amount),
+            currency: payment.currency,
+            status: 'open',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+        tickets.push(newTicket);
+        localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify(tickets));
+    }
+}
+
+// ─── System Preferences ──────────────────────────────────────────────────────────
+
+export const getSystemPrefs = (): SystemPrefs => {
+    return JSON.parse(localStorage.getItem(KEYS.SYSTEM_PREFS) || JSON.stringify({
+        companyName: 'WORLD DEPORTES',
+        ticketFooterMessage: '¡Gracias por su jugada! El ticket caduca a los 3 días.',
+        riskLimitAlert: 500,
+        baseCurrency: 'DOLAR',
+    }));
+};
+
+export const updateSystemPrefs = (prefs: SystemPrefs) => {
+    localStorage.setItem(KEYS.SYSTEM_PREFS, JSON.stringify(prefs));
 };
 
 // --- Currencies ---
@@ -504,3 +668,27 @@ export const updateWeeklyTicketStatus = (ticketId: string, status: WeeklyTicket[
         localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify(tickets));
     }
 };
+
+// ─── Expense Helpers ──────────────────────────────────────────────────────────
+
+export const getExpenses = (): Expense[] => {
+    return JSON.parse(localStorage.getItem(KEYS.EXPENSES) || '[]');
+};
+
+export const addExpense = (expense: Omit<Expense, 'id' | 'createdAt'>): Expense => {
+    const expenses = getExpenses();
+    const newExpense: Expense = {
+        ...expense,
+        id: `exp-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+    };
+    expenses.push(newExpense);
+    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
+    return newExpense;
+};
+
+export const deleteExpense = (expenseId: string) => {
+    const expenses = getExpenses().filter(e => e.id !== expenseId);
+    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
+};
+

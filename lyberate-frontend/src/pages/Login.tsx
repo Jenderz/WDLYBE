@@ -9,15 +9,24 @@ export const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const loggedUser = login(email, password);
-        if (!loggedUser) {
-            setError('Credenciales incorrectas. Verifica tu correo y contraseña.');
-            return;
+        setLoading(true);
+        try {
+            const loggedUser = await login(email, password);
+            if (!loggedUser) {
+                setError('Credenciales incorrectas. Verifica tu correo y contraseña.');
+                return;
+            }
+            navigate(loggedUser.role === 'Vendedor' ? '/portal' : '/dashboard', { replace: true });
+        } catch {
+            setError('Error de conexión. Intenta de nuevo.');
+        } finally {
+            setLoading(false);
         }
-        navigate(loggedUser.role === 'Vendedor' ? '/portal' : '/dashboard', { replace: true });
     };
 
     return (
@@ -26,12 +35,12 @@ export const Login = () => {
 
                 <div className="text-center mb-8">
                     <img
-                        src="https://orgemac.com/api/uploads/img_1767849584_a1254615.png"
-                        alt="Lyberate Logo"
-                        className="w-16 h-16 mx-auto mb-4 object-contain"
+                        src="https://freanpartners.com/upload/logoworlddeportes.webp"
+                        alt="WORLD DEPORTES Logo"
+                        className="w-20 h-20 mx-auto mb-4 object-contain"
                     />
-                    <h1 className="text-2xl font-bold">Lyberate</h1>
-                    <p className="text-sm text-ios-subtext mt-1">Ingresa a tu cuenta</p>
+                    <h1 className="text-2xl font-bold">WORLD DEPORTES</h1>
+                    <p className="text-sm text-ios-subtext mt-1">Ingresa a tu cuenta admin</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,20 +73,17 @@ export const Login = () => {
 
                     <button
                         type="submit"
-                        className="w-full bg-ios-blue text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-600 transition-all active:scale-[0.98]"
+                        disabled={loading}
+                        className="w-full bg-ios-blue text-white font-bold py-3 rounded-xl shadow-md hover:bg-blue-600 transition-all active:scale-[0.98] disabled:opacity-50"
                     >
-                        Iniciar Sesión
+                        {loading ? 'Conectando...' : 'Iniciar Sesión'}
                     </button>
 
-                    <div className="text-center text-xs text-ios-subtext space-y-1 pt-1">
-                        <p className="font-medium">Usuarios de prueba:</p>
-                        <p>admin@lyberate.com / admin123</p>
-                        <p>jhon@lyberate.com / vend123</p>
-                    </div>
+
                 </form>
 
                 <div className="mt-6 text-center text-xs text-ios-subtext">
-                    <p>Tecnología Lyberate © 2026</p>
+                    <p>WORLD DEPORTES © 2026</p>
                 </div>
             </div>
         </div>

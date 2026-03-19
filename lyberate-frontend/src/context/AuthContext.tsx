@@ -1,12 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
     AppUser,
-    findUserByCredentials,
+    loginUser,
     loadSession,
-    saveSession,
     clearSession,
     initLocalStore,
-} from '../services/localStore';
+} from '../services/apiService';
 
 // Re-export for convenience
 export type { AppUser };
@@ -14,30 +13,40 @@ export type Role = AppUser['role'];
 
 interface AuthContextType {
     user: AppUser | null;
-    login: (email: string, password: string) => AppUser | null;
+    login: (email: string, password: string) => Promise<AppUser | null>;
     logout: () => void;
     isAuthenticated: boolean;
     isAdmin: boolean;
     isVendedor: boolean;
+    loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<AppUser | null>(null);
+    const [loading, setLoading] = useState(true);
 
-    // On mount: initialize seed data if first time, then restore session
+    // On mount: restore session from JWT
     useEffect(() => {
-        initLocalStore();
-        const session = loadSession();
-        if (session) setUser(session);
+        initLocalStore(); // no-op for API mode
+        const restoreSession = async () => {
+            try {
+                const session = await loadSession();
+                if (session) setUser(session);
+            } catch {
+                // token invalid or expired
+            } finally {
+                setLoading(false);
+            }
+        };
+        restoreSession();
     }, []);
 
-    const login = (email: string, password: string): AppUser | null => {
-        const found = findUserByCredentials(email, password);
+    const login = async (email: string, password: string): Promise<AppUser | null> => {
+        const found = await loginUser(email, password);
         if (!found) return null;
         setUser(found);
-        saveSession(found);
         return found;
     };
 
@@ -54,6 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             isAuthenticated: !!user,
             isAdmin: user?.role === 'Admin' || user?.role === 'Supervisor',
             isVendedor: user?.role === 'Vendedor',
+            loading,
         }}>
             {children}
         </AuthContext.Provider>
