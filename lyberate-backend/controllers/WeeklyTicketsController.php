@@ -13,9 +13,12 @@ function handleWeeklyTickets(string $method, ?string $action = null, ?string $id
         case 'GET':
             $filters = [];
             if ($auth['role'] === 'Vendedor') {
-                // Forzar seller_id desde el JWT — el vendedor solo ve sus propios tickets
-                $filters['seller_id'] = $auth['seller_id'] ?? '';
+                // Forzar seller_id desde el JWT
+                $filters['seller_id']     = $auth['seller_id'] ?? '';
+                $filters['owner_user_id'] = 'global';
             } else {
+                // Admin/Supervisor: solo tickets globales
+                $filters['owner_user_id'] = 'global';
                 if (!empty($_GET['week_id']))   $filters['week_id']   = $_GET['week_id'];
                 if (!empty($_GET['seller_id'])) $filters['seller_id'] = $_GET['seller_id'];
             }

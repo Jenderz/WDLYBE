@@ -52,12 +52,19 @@ try {
 
         case 'users':
             require_once __DIR__ . '/controllers/UsersController.php';
-            handleUsers($method, $action);
+            // Support /users/{id}/{action} e.g. toggle-agency, purge-agency
+            $userAction = $segments[2] ?? null;
+            handleUsers($method, $action, $userAction);
             break;
 
         case 'sellers':
             require_once __DIR__ . '/controllers/SellersController.php';
             handleSellers($method, $action);
+            break;
+
+        case 'seller-aliases':
+            require_once __DIR__ . '/controllers/SellerAliasesController.php';
+            handleSellerAliases($method);
             break;
 
         case 'sales':
@@ -66,18 +73,20 @@ try {
             if ($action === 'batch') {
                 handleSales($method, 'batch');
             } else {
-                handleSales($method, null, $action); // $action is the ID for DELETE
+                handleSales($method, null, $action); // $action is the ID for DELETE/PUT
             }
             break;
 
         case 'payments':
             require_once __DIR__ . '/controllers/PaymentsController.php';
             require_once __DIR__ . '/models/User.php';
-            // /payments/vendor/{id} OR /payments/{id}/status
+            // /payments/vendor/{id} OR /payments/{id}/status OR /payments/{id}/edit
             if ($action === 'vendor') {
                 handlePayments($method, 'vendor', $segments[2] ?? null);
             } elseif (isset($segments[2]) && $segments[2] === 'status') {
                 handlePayments('PUT', 'status', $action);
+            } elseif (isset($segments[2]) && $segments[2] === 'edit') {
+                handlePayments('PUT', 'edit', $action);
             } else {
                 handlePayments($method, $action, $action);
             }
@@ -86,6 +95,29 @@ try {
         case 'agencies':
             require_once __DIR__ . '/controllers/AgenciesController.php';
             handleAgencies($method, $action);
+            break;
+
+        case 'agency':
+            // Agency Portal — all sub-routes handled here
+            // Routes: /agency/{resource}/{id?}/{action?}
+            // e.g. /agency/sellers, /agency/sales/batch, /agency/payments/5/edit
+            require_once __DIR__ . '/controllers/AgencyPortalController.php';
+            $agencyResource = $action ?? '';  // segments[1]
+            $agencyId       = $segments[2] ?? null; // segments[2] (numeric ID or 'batch')
+            $agencyAction   = $segments[3] ?? null; // segments[3] (e.g. 'edit', 'status')
+
+            // Handle /agency/sales/batch  (/agency/{resource}/{id})
+            if ($agencyId === 'batch') {
+                handleAgencyPortal($method, $agencyResource, 'batch', null);
+            }
+            // Handle /agency/payments/{id}/edit or /agency/payments/{id}/status
+            elseif ($agencyAction !== null) {
+                handleAgencyPortal($method, $agencyResource, $agencyAction, $agencyId);
+            }
+            // Handle /agency/{resource}/{id}
+            else {
+                handleAgencyPortal($method, $agencyResource, null, $agencyId);
+            }
             break;
 
         case 'weekly-tickets':

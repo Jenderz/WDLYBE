@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Search, Edit2, Trash2, X, Plus, Globe, Clock } from 'lucide-react';
+import { Edit2, Trash2, X, Plus, Globe, Clock, Building2, ShieldOff, Flame } from 'lucide-react';
 import {
-    getSellers, addSeller, addUser, Seller, Product,
-    getAvailableCurrencies, getGlobalProducts, updateSeller,
-    updateUser, deleteSeller, getUserBySellerId, deleteUserBySellerId
+    Seller, Product,
+    getAvailableCurrencies, getGlobalProducts,
+    updateUser, getUserBySellerId, deleteUserBySellerId,
+    getUsers, AppUser, toggleAgencyMode, purgeAgencyData, addUser,
 } from '../services/apiService';
+import { useApiScope } from '../hooks/useApiScope';
 import { SellerHistoryModal } from '../components/SellerHistoryModal';
+import { useSmartTable } from '../hooks/useSmartTable';
+import { TablePaginator } from '../components/SmartTable/TablePaginator';
 
 export const Sellers = () => {
+    const api = useApiScope();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [sellers, setSellers] = useState<Seller[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [users, setUsers] = useState<AppUser[]>([]);
     const [editingSellerId, setEditingSellerId] = useState<string | null>(null);
     const [historySeller, setHistorySeller] = useState<{ id: string, name: string } | null>(null);
 
@@ -40,10 +45,13 @@ export const Sellers = () => {
 
     useEffect(() => {
         const load = async () => {
-            const [sel, currencies, products] = await Promise.all([getSellers(), getAvailableCurrencies(), getGlobalProducts()]);
+            const [sel, currencies, products, allUsers] = await Promise.all([
+                api.getSellers(), getAvailableCurrencies(), getGlobalProducts(), api.isAgencyMode ? Promise.resolve([]) : getUsers()
+            ]);
             setSellers(sel);
             setAvailableCurrencies(currencies);
             setGlobalProducts(products);
+            setUsers(allUsers);
         };
         load();
     }, []);
@@ -111,7 +119,7 @@ export const Sellers = () => {
 
     const handleEdit = async (seller: Seller) => {
         setEditingSellerId(String(seller.id));
-        const user = await getUserBySellerId(String(seller.id));
+        const user = api.isAgencyMode ? null : await getUserBySellerId(String(seller.id));
 
         setFormData({
             name: seller.name,
@@ -150,21 +158,59 @@ export const Sellers = () => {
 
     const handleDelete = async (seller: Seller) => {
         if (window.confirm(`¿Estás seguro de que deseas eliminar al vendedor ${seller.name}?\nEsta acción es irreversible.`)) {
-            // Optimistic update
             const previousSellers = [...sellers];
             setSellers(sellers.filter(s => s.id !== seller.id));
-
             try {
-                await deleteUserBySellerId(String(seller.id));
-                await deleteSeller(String(seller.id));
-                // Optional: sync again with server to be absolutely sure
-                const updatedSellers = await getSellers();
+                await deleteUserBySellerId(String(seller.id)).catch(() => {});
+                await api.deleteSeller(String(seller.id));
+                const updatedSellers = await api.getSellers();
                 setSellers(updatedSellers);
             } catch (err: any) {
-                // Rollback on error
                 setSellers(previousSellers);
                 alert(`Error al eliminar: ${err?.message || 'Error desconocido'}`);
             }
+        }
+    };
+
+    // ── Modo Agencia helpers ──────────────────────────────────
+    const getLinkedUser = (seller: Seller): AppUser | undefined =>
+        users.find(u => String(u.sellerId) === String(seller.id));
+
+    const handleToggleAgency = async (seller: Seller) => {
+        const linkedUser = getLinkedUser(seller);
+        if (!linkedUser) {
+            alert('Este vendedor no tiene usuario asociado. Créale un usuario antes de convertirlo en agencia.');
+            return;
+        }
+        const isAgency = !!linkedUser.isAgency;
+        const msg = isAgency
+            ? `¿Desactivar Modo Agencia para ${seller.name}?\nEl vendedor volverá a su portal normal. Sus datos aislados se conservarán.`
+            : `¿Activar Modo Agencia para ${seller.name}?\nTendrá acceso a un panel administrativo propio con vendedores, ventas y recaudaciones independientes.`;
+        if (!window.confirm(msg)) return;
+        try {
+            const updatedUser = await toggleAgencyMode(String(linkedUser.id));
+            setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+        } catch (err: any) {
+            alert(`Error: ${err?.message || 'Error desconocido'}`);
+        }
+    };
+
+    const handlePurgeAgency = async (seller: Seller) => {
+        const linkedUser = getLinkedUser(seller);
+        if (!linkedUser) return;
+        if (!window.confirm(
+            `⚠️ ACCIÓN IRREVERSIBLE\n\n¿Eliminar PERMANENTEMENTE todos los datos de agencia de ${seller.name}?\n\nEsto borrará todos sus sub-vendedores, ventas, recaudaciones y tickets semanales.\n\nEscribe "CONFIRMAR" para proceder.`
+        )) return;
+        const confirmText = window.prompt('¿Confirmas? Escribe CONFIRMAR para borrar permanentemente:');
+        if (confirmText?.trim() !== 'CONFIRMAR') {
+            alert('Purga cancelada.');
+            return;
+        }
+        try {
+            await purgeAgencyData(String(linkedUser.id));
+            alert('✅ Datos de agencia eliminados correctamente.');
+        } catch (err: any) {
+            alert(`Error: ${err?.message || 'Error desconocido'}`);
         }
     };
 
@@ -172,7 +218,7 @@ export const Sellers = () => {
         e.preventDefault();
         if (!formData.name) return;
 
-        if (!editingSellerId && (!formData.email || !formData.password)) return;
+        if (!editingSellerId && !api.isAgencyMode && (!formData.email || !formData.password)) return;
 
         try {
             const productsMap = new Map<string, Product>();
@@ -199,7 +245,7 @@ export const Sellers = () => {
 
         if (editingSellerId) {
             // 1. Update Seller Object
-            await updateSeller({
+            await api.updateSeller({
                 id: editingSellerId,
                 name: formData.name,
                 idNumber: formData.idNumber,
@@ -208,26 +254,43 @@ export const Sellers = () => {
                 createdAt: sellers.find(s => String(s.id) === editingSellerId)?.createdAt || new Date().toISOString()
             });
 
-            // 2. Update User Object if exists
+            // 2. Update or create User Account (skip in agency mode)
+            if (!api.isAgencyMode) {
             const user = await getUserBySellerId(editingSellerId);
             if (user) {
-                await updateUser({
+                // Usuario ya existe — actualizar solo los campos disponibles
+                const updatePayload: any = {
                     ...user,
+                    name: formData.name,
+                };
+                // Solo actualizar email si se proporcionó uno
+                if (formData.email) updatePayload.email = formData.email;
+                // Solo actualizar password si se proporcionó uno nuevo
+                if (formData.password) updatePayload.password = formData.password;
+
+                await updateUser(updatePayload);
+            } else if (formData.email && formData.password) {
+                // No tiene usuario — crear uno si se proporcionaron credenciales
+                await addUser({
                     name: formData.name,
                     email: formData.email,
                     password: formData.password,
+                    role: 'Vendedor',
+                    sellerId: editingSellerId,
                 });
             }
+            } // end if !isAgencyMode
         } else {
             // 1. Create Seller Object
-            const newSeller = await addSeller({
+            const newSeller = await api.addSeller({
                 name: formData.name,
                 idNumber: formData.idNumber,
                 phone: formData.phone,
                 products: Array.from(productsMap.values()),
             });
 
-            // 2. Create User Account
+            // 2. Create User Account (skip in agency mode)
+            if (!api.isAgencyMode) {
             await addUser({
                 name: formData.name,
                 email: formData.email,
@@ -235,20 +298,29 @@ export const Sellers = () => {
                 role: 'Vendedor',
                 sellerId: String(newSeller.id)
             });
+            } // end if !isAgencyMode
         }
 
         // Refresh and close
-        setSellers(await getSellers());
+        setSellers(await api.getSellers());
         closeModal();
         } catch (err: any) {
             alert(`Error al guardar: ${err?.message || 'Error desconocido'}`);
         }
     };
 
-    const filteredSellers = sellers.filter(s =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.idNumber?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // ─── Tabla Inteligente ────────────────────────────────────────────
+    // Sustituye el searchTerm + filteredSellers manuales por useSmartTable
+    // que incluye debounce automático de 300ms y paginación.
+    const {
+        paginatedData: paginatedSellers,
+        searchQuery: sellerSearch,
+        setSearchQuery: setSellerSearch,
+        page: sellerPage, setPage: setSellerPage,
+        pageSize: sellerPageSize, setPageSize: setSellerPageSize,
+        totalPages: sellerTotalPages, totalCount: sellerTotalCount,
+        rangeFrom: sellerRangeFrom, rangeTo: sellerRangeTo,
+    } = useSmartTable(sellers, { defaultPageSize: 40 });
 
     return (
         <div className="space-y-6 animate-fade-in pb-safe">
@@ -288,14 +360,35 @@ export const Sellers = () => {
                                         <label className="block text-[10px] font-bold text-ios-subtext mb-1 uppercase tracking-wider">Nombre Completo</label>
                                         <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all" placeholder="Ej: Jhon Doe" />
                                     </div>
+                                    {!api.isAgencyMode && (
                                     <div className="col-span-2 sm:col-span-1">
                                         <label className="block text-[10px] font-bold text-ios-subtext mb-1 uppercase tracking-wider">Correo Electrónico</label>
-                                        <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all" placeholder="vendedor@email.com" />
+                                        <input
+                                            required={!editingSellerId}
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                            className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all"
+                                            placeholder="vendedor@email.com"
+                                        />
                                     </div>
+                                    )}
+                                    {!api.isAgencyMode && (
                                     <div className="col-span-2 sm:col-span-1">
                                         <label className="block text-[10px] font-bold text-ios-subtext mb-1 uppercase tracking-wider">Contraseña Portal</label>
-                                        <input required type="password" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all" placeholder="••••••••" />
+                                        <input
+                                            required={!editingSellerId}
+                                            type="password"
+                                            value={formData.password}
+                                            onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                            className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all"
+                                            placeholder={editingSellerId ? 'Dejar vacío para no cambiar' : '••••••••'}
+                                        />
+                                        {editingSellerId && (
+                                            <p className="text-[10px] text-ios-subtext mt-1 italic">Si dejas este campo vacío, se conserva la contraseña actual.</p>
+                                        )}
                                     </div>
+                                    )}
                                     <div className="col-span-2 sm:col-span-1">
                                         <label className="block text-[10px] font-bold text-ios-subtext mb-1 uppercase tracking-wider">Documento / ID</label>
                                         <input type="text" value={formData.idNumber} onChange={e => setFormData({ ...formData, idNumber: e.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border border-transparent focus:border-ios-blue outline-none text-sm transition-all" placeholder="V-12345678" />
@@ -431,12 +524,12 @@ export const Sellers = () => {
             <div className="glass-panel p-6 rounded-3xl flex flex-col">
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
                     <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-ios-subtext" size={20} />
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-ios-subtext" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                         <input
                             type="text"
                             placeholder="Buscar vendedores..."
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            value={sellerSearch}
+                            onChange={e => setSellerSearch(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 border-none focus:ring-2 focus:ring-ios-blue/50 outline-none transition-all"
                         />
                     </div>
@@ -453,7 +546,14 @@ export const Sellers = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5 dark:divide-white/5 text-sm">
-                            {filteredSellers.map(seller => {
+                            {paginatedSellers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-ios-subtext italic">
+                                        {sellers.length === 0 ? 'No hay vendedores registrados.' : 'Sin resultados para tu búsqueda.'}
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedSellers.map(seller => {
                                 // Extract products and unique currencies
                                 const products = seller.products || [];
                                 const uniqueCurrencies = Array.from(new Set(products.flatMap(p => p.currencies.map(c => c.name))));
@@ -492,18 +592,77 @@ export const Sellers = () => {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => setHistorySeller({ id: String(seller.id), name: seller.name })} title="Ver Historial" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Clock size={16} /></button>
-                                                <button onClick={() => handleEdit(seller)} title="Editar" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                                                <button onClick={() => handleDelete(seller)} title="Eliminar" className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                {/* Badge Agencia & actions */}
+                                                {(() => {
+                                                    const linkedUser = api.isAgencyMode ? null : getLinkedUser(seller);
+                                                    const isAgency = !!linkedUser?.isAgency;
+                                                    return (
+                                                        <>
+                                                            {!api.isAgencyMode && isAgency && (
+                                                                <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                                                    <Building2 size={10} />
+                                                                    Agencia
+                                                                </span>
+                                                            )}
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button onClick={() => handleEdit(seller)} title="Editar" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                                                                {!api.isAgencyMode && (
+                                                                <>
+                                                                <button onClick={() => setHistorySeller({ id: String(seller.id), name: seller.name })} title="Ver Historial" className="p-1.5 text-ios-blue hover:bg-ios-blue/10 rounded-lg transition-colors"><Clock size={16} /></button>
+                                                                {linkedUser && (
+                                                                    <button
+                                                                        onClick={() => handleToggleAgency(seller)}
+                                                                        title={isAgency ? 'Desactivar Modo Agencia' : 'Activar Modo Agencia'}
+                                                                        className={`p-1.5 rounded-lg transition-colors ${
+                                                                            isAgency
+                                                                                ? 'text-orange-500 hover:bg-orange-500/10'
+                                                                                : 'text-purple-500 hover:bg-purple-500/10'
+                                                                        }`}
+                                                                    >
+                                                                        {isAgency ? <ShieldOff size={16} /> : <Building2 size={16} />}
+                                                                    </button>
+                                                                )}
+                                                                {isAgency && (
+                                                                    <button
+                                                                        onClick={() => handlePurgeAgency(seller)}
+                                                                        title="Purgar datos de agencia"
+                                                                        className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"
+                                                                    >
+                                                                        <Flame size={16} />
+                                                                    </button>
+                                                                )}
+                                                                </>
+                                                                )}
+                                                                <button onClick={() => handleDelete(seller)} title="Eliminar" className="p-1.5 text-ios-red hover:bg-ios-red/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         </td>
                                     </tr>
                                 );
-                            })}
+                            })
+                            )}
                         </tbody>
+
                     </table>
+
+                    {/* Paginador de vendedores */}
+                    {sellerTotalCount > 0 && (
+                        <TablePaginator
+                            page={sellerPage}
+                            totalPages={sellerTotalPages}
+                            totalCount={sellerTotalCount}
+                            pageSize={sellerPageSize}
+                            rangeFrom={sellerRangeFrom}
+                            rangeTo={sellerRangeTo}
+                            setPage={setSellerPage}
+                            setPageSize={setSellerPageSize}
+                        />
+                    )}
                 </div>
             </div>
 

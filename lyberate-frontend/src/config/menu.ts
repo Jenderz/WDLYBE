@@ -1,9 +1,10 @@
-import { Users, Store, Receipt, Wallet, Banknote, LayoutDashboard, Settings } from 'lucide-react';
+import { Users, Store, Receipt, Wallet, Banknote, LayoutDashboard, Settings, Activity } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
     { id: 'sales', label: 'Ventas', icon: Receipt, path: '/sales' },
     { id: 'collections', label: 'Recaudaciones', icon: Wallet, path: '/collections' },
+    { id: 'transactions', label: 'Transacciones', icon: Activity, path: '/transactions' },
     { id: 'expenses', label: 'Gastos', icon: Banknote, path: '/expenses' },
 
     { id: 'sellers', label: 'Vendedores', icon: Users, path: '/sellers' },

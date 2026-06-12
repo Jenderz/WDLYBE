@@ -5,6 +5,7 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { DashboardHome } from './pages/DashboardHome';
 import { Collections } from './pages/Collections';
 import { Sales } from './pages/Sales';
+import { Transactions } from './pages/Transactions';
 
 import { Sellers } from './pages/Sellers';
 import { Agencies } from './pages/Agencies';
@@ -13,6 +14,7 @@ import { Login } from './pages/Login';
 import { VendorPortal } from './pages/VendorPortal';
 import { WeeklyClosing } from './pages/WeeklyClosing';
 import { Settings } from './pages/Settings';
+import { AgencyPortal } from './pages/AgencyPortal/AgencyPortal';
 
 // Preloader Genérico "Tecnología WORLD DEPORTES"
 const GenericPreloader = () => {
@@ -68,13 +70,14 @@ const UnderConstruction = ({ title }: { title: string }) => (
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
     const { isAuthenticated, user, loading } = useAuth();
 
-    // Mientras se restaura la sesión, no redirigir todavía
     if (loading) return null;
-
     if (!isAuthenticated) return <Navigate to="/login" replace />;
+
     if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-        // Redirigir al vendedor a su portal; otros roles al dashboard
-        return <Navigate to={user.role === 'Vendedor' ? '/portal' : '/dashboard'} replace />;
+        if (user.role === 'Vendedor') {
+            return <Navigate to="/portal" replace />;
+        }
+        return <Navigate to="/dashboard" replace />;
     }
 
     return <>{children}</>;
@@ -85,7 +88,10 @@ const RoleBasedFallback = () => {
     const { user, isAuthenticated, loading } = useAuth();
     if (loading) return null;
     if (!isAuthenticated) return <Navigate to="/login" replace />;
-    return <Navigate to={user?.role === 'Vendedor' ? '/portal' : '/dashboard'} replace />;
+    if (user?.role === 'Vendedor') {
+        return <Navigate to="/portal" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
 };
 
 const AppContent = () => {
@@ -112,6 +118,7 @@ const AppContent = () => {
                     {/* Rutas Restringidas por Rol (Ejemplo Admin/Supervisor) */}
                     <Route path="sales" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Sales /></ProtectedRoute>} />
                     <Route path="collections" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor', 'Banca']}><Collections /></ProtectedRoute>} />
+                    <Route path="transactions" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor', 'Banca']}><Transactions /></ProtectedRoute>} />
                     <Route path="expenses" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Expenses /></ProtectedRoute>} />
 
                     <Route path="sellers" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Sellers /></ProtectedRoute>} />
@@ -122,10 +129,17 @@ const AppContent = () => {
                     <Route path="audits" element={<UnderConstruction title="Auditorías" />} />
                 </Route>
 
-                {/* Vendor Portal (separate from admin layout) */}
+                {/* Vendor Portal — vendedor normal */}
                 <Route path="/portal" element={
                     <ProtectedRoute allowedRoles={['Vendedor']}>
                         <VendorPortal />
+                    </ProtectedRoute>
+                } />
+
+                {/* Agency Portal — vendedor con Modo Agencia activo */}
+                <Route path="/agency" element={
+                    <ProtectedRoute allowedRoles={['Vendedor']}>
+                        <AgencyPortal />
                     </ProtectedRoute>
                 } />
 

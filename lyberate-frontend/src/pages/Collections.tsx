@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { TicketGenerator } from '../components/TicketGenerator';
-import { updatePaymentStatus, Payment } from '../services/apiService';
+import { EditConfirmationModal } from '../components/EditConfirmationModal';
+import { Payment } from '../services/apiService';
+import { useApiScope } from '../hooks/useApiScope';
 
 // Hooks
 import { useCollectionsData } from './Collections/hooks/useCollectionsData';
@@ -10,32 +12,40 @@ import { useCollectionForm } from './Collections/hooks/useCollectionForm';
 
 // Components
 import { CollectionHeader } from './Collections/components/CollectionHeader';
-import { CollectionKPIs } from './Collections/components/CollectionKPIs';
 import { CollectionFilters } from './Collections/components/CollectionFilters';
+import { CollectionStatsPanel } from './Collections/components/CollectionStatsPanel';
 import { SellerBalanceTable } from './Collections/components/SellerBalanceTable';
 import { ApprovalsPanel } from './Collections/components/ApprovalsPanel';
 import { PaymentsTable } from './Collections/components/PaymentsTable';
 import { PaymentRegistrationModal } from './Collections/components/PaymentRegistrationModal';
 
 export const Collections = () => {
-    const { payments, sellers, sales, refreshData } = useCollectionsData();
+    const api = useApiScope();
+    const { payments, sellers, sales, isLoading, refreshData } = useCollectionsData({
+        getSellers: api.getSellers,
+        getSales: api.getSales,
+        getPayments: api.getPayments,
+    });
     const [selectedTicket, setSelectedTicket] = useState<Payment | null>(null);
-    const [activeTab, setActiveTab] = useState<'list' | 'approvals'>('list');
+    const [activeTab, setActiveTab] = useState<'list' | 'balance' | 'approvals' | 'stats'>('list');
     const [proofLightbox, setProofLightbox] = useState<string | null>(null);
 
     // Filter Logic
-    const filter = useCollectionsFilter(payments);
+    const filter = useCollectionsFilter(payments, sales, sellers);
 
     // Form Logic
-    const form = useCollectionForm(sellers, sales, payments, refreshData);
+    const form = useCollectionForm(sellers, sales, payments, refreshData, {
+        addPayment: api.addPayment,
+        updatePayment: api.updatePayment,
+    });
 
     const handleApprove = async (id: string) => {
-        await updatePaymentStatus(id, 'approved');
+        await api.updatePaymentStatus(id, 'approved');
         refreshData();
     };
 
     const handleReject = async (id: string, note: string) => {
-        await updatePaymentStatus(id, 'rejected', note);
+        await api.updatePaymentStatus(id, 'rejected', note);
         refreshData();
     };
 
@@ -47,6 +57,11 @@ export const Collections = () => {
                 sellers={sellers}
                 {...form}
                 currencies={form.currencies}
+                banks={form.banks}
+                paymentMethods={form.paymentMethods}
+                formOperationType={form.formOperationType}
+                setFormOperationType={form.setFormOperationType}
+                editingPayment={form.editingPayment}
             />
 
             <CollectionFilters
@@ -59,20 +74,34 @@ export const Collections = () => {
                 searchQuery={filter.searchQuery} setSearchQuery={filter.setSearchQuery}
             />
 
-            <CollectionKPIs
-                totalCollected={filter.totalCollected}
-                totalPending={filter.totalPending}
-                totalCredits={filter.totalCredits}
-            />
+            {activeTab === 'stats' && (
+                <CollectionStatsPanel
+                    statsByCurrency={filter.statsByCurrency}
+                    salesByProduct={filter.salesByProduct}
+                />
+            )}
 
-            <SellerBalanceTable
-                sales={sales}
-                payments={payments}
-                filterRange={filter.filterRange}
-                filterPreset={filter.filterPreset}
-                rangeStart={filter.rangeStart}
-                rangeEnd={filter.rangeEnd}
-            />
+            {activeTab === 'list' && (
+                <PaymentsTable
+                    filteredPayments={filter.filteredPayments}
+                    isLoading={isLoading}
+                    onOpenProof={(src) => setProofLightbox(src)}
+                    onSelectTicket={setSelectedTicket}
+                    onEditPayment={(payment) => form.startEditPayment(payment)}
+                />
+            )}
+
+            {activeTab === 'balance' && (
+                <SellerBalanceTable
+                    sales={sales}
+                    payments={payments}
+                    filterRange={filter.filterRange}
+                    filterPreset={filter.filterPreset}
+                    rangeStart={filter.rangeStart}
+                    rangeEnd={filter.rangeEnd}
+                    searchQuery={filter.searchQuery}
+                />
+            )}
 
             {activeTab === 'approvals' && (
                 <ApprovalsPanel
@@ -83,13 +112,15 @@ export const Collections = () => {
                 />
             )}
 
-            {activeTab === 'list' && (
-                <PaymentsTable
-                    filteredPayments={filter.filteredPayments}
-                    onOpenProof={(src) => setProofLightbox(src)}
-                    onSelectTicket={setSelectedTicket}
-                />
-            )}
+            {/* Modal de Confirmación de Edición de Pagos */}
+            <EditConfirmationModal
+                isOpen={form.showEditConfirm}
+                title="Confirmar Edición de Pago"
+                changes={form.editChanges}
+                onConfirm={form.handleConfirmEdit}
+                onCancel={() => form.setShowEditConfirm(false)}
+                loading={form.editConfirmLoading}
+            />
 
             {/* Modal de Ticket Generator */}
             {selectedTicket && (
@@ -98,7 +129,6 @@ export const Collections = () => {
                     type="Cobro"
                     amountUsd={selectedTicket.currency === 'DOLAR' ? selectedTicket.amount : 0}
                     amountVes={selectedTicket.currency === 'BOLIVARES VENEZOLANOS' ? selectedTicket.amount : 0}
-                    rateVes={48.25} // Dummy hardcode rate as in original
                     clientName={selectedTicket.vendorName}
                     agencyName={''}
                     date={selectedTicket.date}

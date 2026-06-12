@@ -6,11 +6,27 @@ require_once __DIR__ . '/../config/database.php';
 
 class Seller {
     /**
-     * Get all sellers with their nested products and currency configs.
+     * Get all GLOBAL sellers (owner_user_id IS NULL).
+     * Agency sub-sellers are excluded from this list.
      */
     public static function getAll(): array {
         $db = getDB();
-        $sellers = $db->query("SELECT * FROM sellers ORDER BY created_at DESC")->fetchAll();
+        $sellers = $db->query("SELECT * FROM sellers WHERE owner_user_id IS NULL ORDER BY created_at DESC")->fetchAll();
+
+        foreach ($sellers as &$seller) {
+            $seller['products'] = self::getProductsForSeller((int)$seller['id']);
+        }
+        return $sellers;
+    }
+
+    /**
+     * Get all sub-sellers belonging to a specific agency (owner_user_id = X).
+     */
+    public static function getAllByOwner(int $ownerUserId): array {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT * FROM sellers WHERE owner_user_id = ? ORDER BY created_at DESC");
+        $stmt->execute([$ownerUserId]);
+        $sellers = $stmt->fetchAll();
 
         foreach ($sellers as &$seller) {
             $seller['products'] = self::getProductsForSeller((int)$seller['id']);
@@ -28,10 +44,15 @@ class Seller {
         return $seller;
     }
 
-    public static function findByName(string $name): ?array {
+    public static function findByName(string $name, ?int $ownerUserId = null): ?array {
         $db = getDB();
-        $stmt = $db->prepare("SELECT * FROM sellers WHERE LOWER(name) = LOWER(?)");
-        $stmt->execute([$name]);
+        if ($ownerUserId !== null) {
+            $stmt = $db->prepare("SELECT * FROM sellers WHERE LOWER(name) = LOWER(?) AND owner_user_id = ?");
+            $stmt->execute([$name, $ownerUserId]);
+        } else {
+            $stmt = $db->prepare("SELECT * FROM sellers WHERE LOWER(name) = LOWER(?) AND owner_user_id IS NULL");
+            $stmt->execute([$name]);
+        }
         $seller = $stmt->fetch();
         if (!$seller) return null;
         $seller['products'] = self::getProductsForSeller((int)$seller['id']);
@@ -40,11 +61,12 @@ class Seller {
 
     public static function create(array $data): int {
         $db = getDB();
-        $stmt = $db->prepare("INSERT INTO sellers (name, id_number, phone) VALUES (?, ?, ?)");
+        $stmt = $db->prepare("INSERT INTO sellers (name, id_number, phone, owner_user_id) VALUES (?, ?, ?, ?)");
         $stmt->execute([
             $data['name'],
             $data['id_number'] ?? null,
             $data['phone'] ?? null,
+            $data['owner_user_id'] ?? null,
         ]);
         $sellerId = (int) $db->lastInsertId();
 

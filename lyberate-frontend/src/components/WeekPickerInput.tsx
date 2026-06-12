@@ -16,7 +16,12 @@ const MONTH_NAMES = [
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
-const toISO = (d: Date) => d.toISOString().split('T')[0];
+const toISO = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+};
 
 const formatWeekRange = (start: Date, end: Date): string => {
     const s = start.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });

@@ -17,8 +17,13 @@ export const getWeekBounds = (d: Date): { start: Date; end: Date } => {
     return { start: mon, end: sun };
 };
 
-/** Formatea un Date a "YYYY-MM-DD" */
-const toISO = (d: Date) => d.toISOString().split('T')[0];
+/** Formatea un Date a "YYYY-MM-DD" usando fecha LOCAL (no UTC) */
+const toISO = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+};
 
 // ── Hook ───────────────────────────────────────────────────────────
 export const useWeeklyFilter = () => {

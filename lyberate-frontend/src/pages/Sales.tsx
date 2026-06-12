@@ -1,19 +1,31 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, Plus, X, Receipt, CheckCircle2, Trash2, AlertTriangle, ChevronDown, Search } from 'lucide-react';
+import { Download, Plus, X, Receipt, CheckCircle2, Trash2, AlertTriangle, ChevronDown, Search, Pencil } from 'lucide-react';
 import { TicketGenerator } from '../components/TicketGenerator';
 import { SalesImportModal } from '../components/SalesImportModal';
 import { WeeklyFilterBar } from '../components/WeeklyFilterBar';
 import { WeekPickerInput } from '../components/WeekPickerInput';
+import { SearchableSelect } from '../components/SearchableSelect';
+import { EditConfirmationModal, ChangeItem } from '../components/EditConfirmationModal';
 import { useWeeklyFilter } from '../hooks/useWeeklyFilter';
-import { getSellers, Seller, getSales, addSale, Sale, deleteSale, dateToWeekId } from '../services/apiService';
+import { useApiScope } from '../hooks/useApiScope';
+import { Seller, Sale, dateToWeekId } from '../services/apiService';
 import { roundFinance, getSymbol } from '../utils/finance';
+import { useSmartTable } from '../hooks/useSmartTable';
+import { TablePaginator } from '../components/SmartTable/TablePaginator';
+import { TableSkeleton } from '../components/SmartTable/TableSkeleton';
+import { CurrencyChips } from '../components/SmartTable/CurrencyChips';
 
 
 
 export const Sales = () => {
+    const api = useApiScope();
     const [selectedTicket, setSelectedTicket] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [editingSale, setEditingSale] = useState<Sale | null>(null);
+    const [showEditConfirm, setShowEditConfirm] = useState(false);
+    const [editConfirmLoading, setEditConfirmLoading] = useState(false);
+    const [isLoadingSales, setIsLoadingSales] = useState(true);
 
     // View state
     const [sellers, setSellers] = useState<Seller[]>([]);
@@ -29,19 +41,24 @@ export const Sales = () => {
 
     useEffect(() => {
         const load = async () => {
-            const [sel, sal] = await Promise.all([getSellers(), getSales()]);
-            setSellers(sel);
-            setSales(sal);
+            setIsLoadingSales(true);
+            try {
+                const [sel, sal] = await Promise.all([api.getSellers(), api.getSales()]);
+                setSellers(sel);
+                setSales(sal);
+            } finally {
+                setIsLoadingSales(false);
+            }
         };
         load();
     }, []);
 
-    const refreshSales = async () => setSales(await getSales());
+    const refreshSales = async () => setSales(await api.getSales());
 
     const handleDeleteSale = async (saleId: string) => {
         if (confirm('¿Eliminar esta venta? Esta acción no se puede deshacer.')) {
             try {
-                await deleteSale(saleId);
+                await api.deleteSale(saleId);
                 await refreshSales();
             } catch (err: any) {
                 alert(`Error al eliminar venta: ${err?.message || 'Error desconocido'}`);
@@ -124,6 +141,76 @@ export const Sales = () => {
     const calcTotalVendedor = roundFinance(calcComision + calcPart);
     const calcTotalBanca = roundFinance(calcTotal - calcPart);
 
+    // ─── Edit functionality ──────────────────────────────────────────────
+    const handleStartEdit = (sale: Sale) => {
+        setEditingSale(sale);
+        // Pre-populate form fields
+        setSellerId(String(sale.sellerId));
+        setDate(sale.date);
+        setAmount(sale.amount);
+        setPrize(sale.prize);
+        // We need to find the right product+currency combo
+        const seller = sellers.find(s => String(s.id) === String(sale.sellerId));
+        if (seller) {
+            const product = seller.products.find(p => p.name === sale.productName);
+            if (product) {
+                setProductId(String(product.id));
+                const curr = product.currencies.find(c => c.name === sale.currencyName);
+                if (curr) setCurrencyId(String(curr.id));
+            }
+        }
+        setIsModalOpen(true);
+    };
+
+    // Build the list of changes for the confirmation modal
+    const editChanges = useMemo((): ChangeItem[] => {
+        if (!editingSale) return [];
+        const changes: ChangeItem[] = [];
+        if (editingSale.sellerName !== (selectedSeller?.name || '')) changes.push({ label: 'Vendedor', oldValue: editingSale.sellerName, newValue: selectedSeller?.name || '' });
+        if (editingSale.productName !== (selectedProduct?.name || '')) changes.push({ label: 'Producto', oldValue: editingSale.productName, newValue: selectedProduct?.name || '' });
+        if (editingSale.currencyName !== (selectedCurrency?.name || '')) changes.push({ label: 'Moneda', oldValue: editingSale.currencyName, newValue: selectedCurrency?.name || '' });
+        if (editingSale.amount !== calcVenta) changes.push({ label: 'Venta Bruta', oldValue: editingSale.amount.toFixed(2), newValue: calcVenta.toFixed(2) });
+        if (editingSale.prize !== calcPremio) changes.push({ label: 'Premios', oldValue: editingSale.prize.toFixed(2), newValue: calcPremio.toFixed(2) });
+        if (editingSale.date !== date) changes.push({ label: 'Fecha', oldValue: editingSale.date, newValue: date });
+        if (editingSale.totalBank !== calcTotalBanca) changes.push({ label: 'Total Banca', oldValue: editingSale.totalBank.toFixed(2), newValue: calcTotalBanca.toFixed(2) });
+        if (editingSale.totalVendor !== calcTotalVendedor) changes.push({ label: 'Total Vendedor', oldValue: editingSale.totalVendor.toFixed(2), newValue: calcTotalVendedor.toFixed(2) });
+        return changes;
+    }, [editingSale, selectedSeller, selectedProduct, selectedCurrency, calcVenta, calcPremio, date, calcTotalBanca, calcTotalVendedor]);
+
+    const handleConfirmEdit = async () => {
+        if (!editingSale) return;
+        setEditConfirmLoading(true);
+        try {
+            await api.updateSale(editingSale.id, {
+                sellerId: String(sellerId),
+                productName: selectedProduct?.name || '',
+                currencyName: selectedCurrency?.name || '',
+                amount: calcVenta,
+                prize: calcPremio,
+                commission: calcComision,
+                total: calcTotal,
+                participation: calcPart,
+                totalVendor: calcTotalVendedor,
+                totalBank: calcTotalBanca,
+                date: date,
+                weekId: dateToWeekId(date),
+            });
+            await refreshSales();
+            setShowEditConfirm(false);
+            setEditingSale(null);
+            setIsModalOpen(false);
+            setAmount('');
+            setPrize('');
+            setSellerId('');
+            setProductId('');
+            setCurrencyId('');
+        } catch (err: any) {
+            alert(`Error al editar venta: ${err?.message || 'Error desconocido'}`);
+        } finally {
+            setEditConfirmLoading(false);
+        }
+    };
+
     const sym = selectedCurrency ? getSymbol(selectedCurrency.name) : '$';
 
     // Group sales for report
@@ -165,6 +252,32 @@ export const Sales = () => {
 
         return { rows, grandTotals };
     }, [sales, filterRange, searchQuery]);
+
+    // ─── Filtro por moneda ──────────────────────────────────────────
+    const [salesCurrencyFilter, setSalesCurrencyFilter] = useState('ALL');
+
+    // Monedas presentes en el período filtrado
+    const salesCurrencies = useMemo(() =>
+        Array.from(new Set(weeklyReportData.rows.map(r => r.currencyName))).sort()
+    , [weeklyReportData.rows]);
+
+    // Filas filtradas por moneda (antes de paginación)
+    const salesRowsFiltered = useMemo(() =>
+        salesCurrencyFilter === 'ALL'
+            ? weeklyReportData.rows
+            : weeklyReportData.rows.filter(r => r.currencyName === salesCurrencyFilter)
+    , [weeklyReportData.rows, salesCurrencyFilter]);
+
+    // ─── Paginación del listado de ventas ────────────────────────────────────
+    // IMPORTANTE: Los Grand Totals se calculan sobre salesRowsFiltered COMPLETO
+    // (todos los registros del período + moneda). La paginación solo afecta las filas visibles.
+    const {
+        paginatedData: paginatedSales,
+        page: salesPage, setPage: setSalesPage,
+        pageSize: salesPageSize, setPageSize: setSalesPageSize,
+        totalPages: salesTotalPages, totalCount: salesTotalCount,
+        rangeFrom: salesRangeFrom, rangeTo: salesRangeTo,
+    } = useSmartTable(salesRowsFiltered, { defaultPageSize: 40 });
 
     const activeCurrencies = useMemo(() => {
         const currenciesMap = new Map<string, { name: string, sym: string, totalSales: number, totalUtility: number }>();
@@ -242,8 +355,8 @@ export const Sales = () => {
                                 <Receipt size={20} className="text-white" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-white tracking-wide">Nueva Venta</h2>
-                                <p className="text-xs text-white/60">Registrar factura y generar ticket</p>
+                                <h2 className="text-xl font-bold text-white tracking-wide">{editingSale ? 'Editar Venta' : 'Nueva Venta'}</h2>
+                                <p className="text-xs text-white/60">{editingSale ? 'Modifica los datos de la factura' : 'Registrar factura y generar ticket'}</p>
                             </div>
                         </div>
 
@@ -251,8 +364,14 @@ export const Sales = () => {
                             e.preventDefault();
                             if (!sellerId || !productId || !currencyId || amount === '') return;
 
+                            // If editing, show confirmation first
+                            if (editingSale) {
+                                setShowEditConfirm(true);
+                                return;
+                            }
+
                             try {
-                                const newSale = await addSale({
+                                const newSale = await api.addSale({
                                     sellerId: String(sellerId),
                                     sellerName: selectedSeller?.name || '',
                                     productId: String(productId),
@@ -295,10 +414,12 @@ export const Sales = () => {
                                         <label className="block text-[11px] font-bold text-white/70 mb-2 tracking-widest uppercase flex items-center gap-1.5">
                                             <span className="text-ios-blue">1.</span> Vendedor
                                         </label>
-                                        <select value={sellerId} onChange={e => handleSellerChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-black/20 text-white border border-transparent focus:border-ios-blue/50 outline-none transition-all appearance-none cursor-pointer text-sm font-medium">
-                                            <option value="" className="text-black">Selecciona un vendedor...</option>
-                                            {sellers.map(s => <option key={s.id} value={s.id} className="text-black">{s.name}</option>)}
-                                        </select>
+                                        <SearchableSelect
+                                            options={sellers.map(s => ({ value: String(s.id), label: s.name }))}
+                                            value={sellerId}
+                                            onChange={handleSellerChange}
+                                            placeholder="Selecciona un vendedor..."
+                                        />
                                     </div>
 
                                     {/* Step 2: Producto y Moneda */}
@@ -470,11 +591,11 @@ export const Sales = () => {
                             </div>
 
                             <div className="pt-4 flex gap-3 border-t border-white/10 mt-6 justify-end">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all border border-white/10">
+                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingSale(null); }} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all border border-white/10">
                                     Cancelar
                                 </button>
-                                <button type="submit" disabled={!currencyId || amount === '' || amount === 0} className="px-8 py-3 rounded-xl bg-gradient-to-r from-ios-blue to-blue-600 text-white font-bold text-sm shadow-[0_4px_15px_rgba(0,122,255,0.4)] disabled:opacity-50 disabled:shadow-none hover:opacity-90 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                                    <CheckCircle2 size={18} /> Confirmar Factura
+                                <button type="submit" disabled={!currencyId || amount === '' || amount === 0} className={`px-8 py-3 rounded-xl bg-gradient-to-r text-white font-bold text-sm shadow-[0_4px_15px_rgba(0,122,255,0.4)] disabled:opacity-50 disabled:shadow-none hover:opacity-90 hover:-translate-y-0.5 transition-all flex items-center gap-2 ${editingSale ? 'from-amber-500 to-orange-600 shadow-[0_4px_15px_rgba(245,158,11,0.4)]' : 'from-ios-blue to-blue-600'}`}>
+                                    <CheckCircle2 size={18} /> {editingSale ? 'Guardar Cambios' : 'Confirmar Factura'}
                                 </button>
                             </div>
                         </form>
@@ -510,6 +631,24 @@ export const Sales = () => {
 
             {/* Main Content Area: Liquidación Semanal */}
             <div className="glass-panel p-6 rounded-3xl animate-fade-in flex flex-col">
+
+                {/* Toolbar de filtro por moneda */}
+                {!isLoadingSales && salesCurrencies.length > 1 && (
+                    <div className="flex items-center gap-3 flex-wrap mb-4 pb-4 border-b border-black/5 dark:border-white/5">
+                        <span className="text-xs font-bold text-ios-subtext uppercase tracking-wider">Moneda:</span>
+                        <CurrencyChips
+                            currencies={salesCurrencies}
+                            selected={salesCurrencyFilter}
+                            onSelect={setSalesCurrencyFilter}
+                        />
+                        {salesTotalCount > 0 && (
+                            <span className="ml-auto text-xs font-semibold text-ios-subtext">
+                                {salesTotalCount} registro(s)
+                            </span>
+                        )}
+                    </div>
+                )}
+
                 <div className="overflow-x-auto rounded-xl border border-black/5 dark:border-white/5 bg-white/50 dark:bg-black/50">
                     <table className="w-full text-right text-sm">
                         <thead className="bg-black/5 dark:bg-white/5 border-b border-black/5 dark:border-white/5">
@@ -527,12 +666,20 @@ export const Sales = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5 dark:divide-white/5">
-                            {weeklyReportData.rows.length === 0 ? (
+                            {isLoadingSales ? (
+                                <TableSkeleton cols={10} rows={8} />
+                            ) : weeklyReportData.rows.length === 0 ? (
                                 <tr>
                                     <td colSpan={10} className="px-4 py-12 text-center text-ios-subtext">No hay ventas registradas en esta semana.</td>
                                 </tr>
+                            ) : salesTotalCount === 0 ? (
+                                <tr>
+                                    <td colSpan={10} className="px-4 py-12 text-center text-ios-subtext">
+                                        Sin ventas en {salesCurrencyFilter} para este período.
+                                    </td>
+                                </tr>
                             ) : (
-                                weeklyReportData.rows.map((row) => (
+                                paginatedSales.map((row) => (
                                     <tr key={row.id} className="hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors group">
                                         <td className="px-4 py-3 text-left">
                                             <div className="font-bold text-ios-text">{row.sellerName}</div>
@@ -552,6 +699,13 @@ export const Sales = () => {
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    onClick={() => handleStartEdit(row)}
+                                                    className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                                    title="Editar venta"
+                                                >
+                                                    <Pencil size={15} />
+                                                </button>
                                                 <button
                                                     onClick={() => setSelectedTicket({
                                                         id: String(row.id).split('-').pop() || Date.now().toString().slice(-4),
@@ -588,8 +742,10 @@ export const Sales = () => {
                                 ))
                             )}
 
-                            {/* Grand Totals loop */}
-                            {Object.entries(weeklyReportData.grandTotals).map(([currency, totals]) => (
+                            {/* Grand Totals — filtrados por la moneda activa si hay selección */}
+                            {!isLoadingSales && Object.entries(weeklyReportData.grandTotals)
+                                .filter(([currency]) => salesCurrencyFilter === 'ALL' || currency === salesCurrencyFilter)
+                                .map(([currency, totals]) => (
                                 <tr key={currency} className="bg-black/5 dark:bg-white/5 font-bold text-sm border-t-2 border-black/10 dark:border-white/10">
                                     <td className="px-4 py-4 text-left text-ios-text">TOTALES {currency}</td>
                                     <td className="px-4 py-4"></td>
@@ -605,6 +761,20 @@ export const Sales = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Paginador de ventas — solo si hay datos */}
+                {!isLoadingSales && salesTotalCount > 0 && (
+                    <TablePaginator
+                        page={salesPage}
+                        totalPages={salesTotalPages}
+                        totalCount={salesTotalCount}
+                        pageSize={salesPageSize}
+                        rangeFrom={salesRangeFrom}
+                        rangeTo={salesRangeTo}
+                        setPage={setSalesPage}
+                        setPageSize={setSalesPageSize}
+                    />
+                )}
             </div>
 
             {/* Modal de Ticket Generator */}
@@ -615,7 +785,6 @@ export const Sales = () => {
                         type="Venta"
                         amountUsd={selectedTicket.amountUsd}
                         amountVes={selectedTicket.amountUsd * 48.25} // Calculado para preview/compatibilidad
-                        rateVes={48.25}
                         clientName={selectedTicket.vendor}
                         agencyName={selectedTicket.agency}
                         date={selectedTicket.date}
@@ -629,13 +798,23 @@ export const Sales = () => {
                     <SalesImportModal
                         onClose={() => setIsImportModalOpen(false)}
                         onImportSuccess={async () => {
-                            const [sal, sel] = await Promise.all([getSales(), getSellers()]);
+                            const [sal, sel] = await Promise.all([api.getSales(), api.getSellers()]);
                             setSales(sal);
                             setSellers(sel);
                         }}
                     />
                 )
             }
+
+            {/* Modal de Confirmación de Edición */}
+            <EditConfirmationModal
+                isOpen={showEditConfirm}
+                title="Confirmar Edición de Venta"
+                changes={editChanges}
+                onConfirm={handleConfirmEdit}
+                onCancel={() => setShowEditConfirm(false)}
+                loading={editConfirmLoading}
+            />
 
         </div >
     );

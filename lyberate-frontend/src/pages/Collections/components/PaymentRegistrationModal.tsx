@@ -1,12 +1,17 @@
-import { FileText, X, CheckCircle2 } from 'lucide-react';
+import { FileText, X, CheckCircle2, Pencil } from 'lucide-react';
 import { Seller, getWeeklyPeriods } from '../../../services/apiService';
 import { WeekPickerInput } from '../../../components/WeekPickerInput';
+import { SearchableSelect } from '../../../components/SearchableSelect';
 
 interface Props {
     isModalOpen: boolean;
     setIsModalOpen: (val: boolean) => void;
     sellers: Seller[];
     currencies?: string[];
+    banks?: string[];
+    paymentMethods?: string[];
+    formOperationType: 'income' | 'payout';
+    setFormOperationType: (val: 'income' | 'payout') => void;
     formDate: string;
     setFormDate: (val: string) => void;
     formSellerId: string;
@@ -26,11 +31,14 @@ interface Props {
     difference: number;
     handleRegisterPayment: (e: React.FormEvent) => void;
     resetForm: () => void;
+    editingPayment?: any;
 }
 
 export const PaymentRegistrationModal = ({
     isModalOpen, setIsModalOpen, sellers,
     currencies = ['DOLAR', 'PESO COLOMBIANA', 'BOLIVARES VENEZOLANOS'],
+    paymentMethods = [], banks = [],
+    formOperationType, setFormOperationType,
     formDate, setFormDate,
     formSellerId, setFormSellerId,
     formCurrency, setFormCurrency,
@@ -39,7 +47,8 @@ export const PaymentRegistrationModal = ({
     formMethod, setFormMethod,
     formReference, setFormReference,
     totalBank, balance, difference,
-    handleRegisterPayment, resetForm
+    handleRegisterPayment, resetForm,
+    editingPayment
 }: Props) => {
     if (!isModalOpen) return null;
 
@@ -51,13 +60,38 @@ export const PaymentRegistrationModal = ({
                 </button>
 
                 <div className="mb-8 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
-                        <FileText size={20} className="text-white" />
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg ${editingPayment ? 'from-amber-500 to-orange-600' : formOperationType === 'income' ? 'from-green-500 to-emerald-600' : 'from-blue-500 to-indigo-600'}`}>
+                        {editingPayment ? <Pencil size={20} className="text-white" /> : <FileText size={20} className="text-white" />}
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white tracking-wide">Registro de Recaudación</h2>
-                        <p className="text-xs text-white/60">Reportar pago ingresado por un vendedor</p>
+                        <h2 className="text-xl font-bold text-white tracking-wide">
+                            {editingPayment 
+                                ? 'Editar Registro' 
+                                : formOperationType === 'income' ? 'Registro de Recaudación' : 'Pago a Vendedor'}
+                        </h2>
+                        <p className="text-xs text-white/60">
+                            {editingPayment
+                                ? 'Modifica los datos del registro'
+                                : formOperationType === 'income' 
+                                    ? 'Reportar pago ingresado por un vendedor' 
+                                    : 'Registrar retiro o liquidación de premios'}
+                        </p>
                     </div>
+                </div>
+
+                <div className="flex bg-black/20 p-1 rounded-xl mb-6 border border-white/5">
+                    <button 
+                        onClick={() => setFormOperationType('income')} 
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formOperationType === 'income' ? 'bg-white text-black shadow-md' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                    >
+                        Ingreso (Nos Pagan)
+                    </button>
+                    <button 
+                        onClick={() => setFormOperationType('payout')} 
+                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${formOperationType === 'payout' ? 'bg-white text-black shadow-md' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                    >
+                        Egreso (Le Pagamos)
+                    </button>
                 </div>
 
                 <form className="space-y-6" onSubmit={handleRegisterPayment}>
@@ -69,10 +103,12 @@ export const PaymentRegistrationModal = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-[11px] font-bold text-white/70 mb-1.5 tracking-wider uppercase">Vendedor</label>
-                                <select value={formSellerId} onChange={e => setFormSellerId(e.target.value)} required className="w-full px-4 py-3 rounded-xl bg-black/20 text-white border border-transparent focus:border-ios-blue/50 outline-none text-sm font-medium transition-all appearance-none cursor-pointer">
-                                    <option value="" className="text-black">Seleccione Vendedor...</option>
-                                    {sellers.map(s => <option key={s.id} value={s.id} className="text-black">{s.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    options={sellers.map(s => ({ value: String(s.id), label: s.name }))}
+                                    value={formSellerId}
+                                    onChange={setFormSellerId}
+                                    placeholder="Seleccione Vendedor..."
+                                />
                             </div>
                             <div>
                                 <label className="block text-[11px] font-bold text-white/70 mb-1.5 tracking-wider uppercase">Fecha Operación</label>
@@ -144,20 +180,35 @@ export const PaymentRegistrationModal = ({
                             <div>
                                 <label className="block text-[11px] font-bold text-white/70 mb-1.5 tracking-wider uppercase">Método</label>
                                 <select value={formMethod} onChange={e => setFormMethod(e.target.value)} required className="w-full px-4 py-3 rounded-xl bg-black/20 text-white border border-transparent focus:border-ios-blue/50 outline-none text-sm font-medium transition-all appearance-none cursor-pointer">
-                                    <option value="Transferencia" className="text-black">Transferencia</option>
-                                    <option value="Zelle" className="text-black">Zelle</option>
-                                    <option value="Pago Móvil" className="text-black">Pago Móvil</option>
-                                    <option value="Efectivo" className="text-black">Efectivo</option>
+                                    <option value="" className="text-black">Seleccione Método...</option>
+                                    {paymentMethods.map(m => (
+                                        <option key={m} value={m} className="text-black">{m}</option>
+                                    ))}
+                                    {paymentMethods.length === 0 && (
+                                        <>
+                                            <option value="Transferencia" className="text-black">Transferencia</option>
+                                            <option value="Zelle" className="text-black">Zelle</option>
+                                            <option value="Pago Móvil" className="text-black">Pago Móvil</option>
+                                            <option value="Efectivo" className="text-black">Efectivo</option>
+                                        </>
+                                    )}
                                 </select>
                             </div>
                             <div>
                                 <label className="block text-[11px] font-bold text-white/70 mb-1.5 tracking-wider uppercase">Banco / Destino</label>
                                 <select value={formBank} onChange={e => setFormBank(e.target.value)} required className="w-full px-4 py-3 rounded-xl bg-black/20 text-white border border-transparent focus:border-ios-blue/50 outline-none text-sm font-medium transition-all appearance-none cursor-pointer">
                                     <option value="" className="text-black">Seleccione Banco...</option>
-                                    <option value="Banesco" className="text-black">Banesco</option>
-                                    <option value="Provincial (BBVA)" className="text-black">Provincial (BBVA)</option>
-                                    <option value="Mercantil" className="text-black">Mercantil</option>
-                                    <option value="BNC" className="text-black">BNC</option>
+                                    {banks.map(b => (
+                                        <option key={b} value={b} className="text-black">{b}</option>
+                                    ))}
+                                    {banks.length === 0 && (
+                                        <>
+                                            <option value="Banesco" className="text-black">Banesco</option>
+                                            <option value="Provincial (BBVA)" className="text-black">Provincial (BBVA)</option>
+                                            <option value="Mercantil" className="text-black">Mercantil</option>
+                                            <option value="BNC" className="text-black">BNC</option>
+                                        </>
+                                    )}
                                 </select>
                             </div>
                             <div>
@@ -168,11 +219,11 @@ export const PaymentRegistrationModal = ({
                     </div>
 
                     <div className="pt-4 flex gap-3 justify-end border-t border-white/10 mt-6">
-                        <button type="button" onClick={resetForm} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all border border-white/10">
-                            Limpiar Campos
+                        <button type="button" onClick={() => { resetForm(); setIsModalOpen(false); }} className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition-all border border-white/10">
+                            {editingPayment ? 'Cancelar' : 'Limpiar Campos'}
                         </button>
-                        <button type="submit" disabled={!formSellerId || !formAmount} className="px-8 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-sm shadow-[0_4px_15px_rgba(16,185,129,0.4)] disabled:opacity-50 disabled:shadow-none hover:opacity-90 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                            <CheckCircle2 size={18} /> Confirmar Recaudo
+                        <button type="submit" disabled={!formSellerId || !formAmount} className={`px-8 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 disabled:shadow-none hover:opacity-90 hover:-translate-y-0.5 transition-all flex items-center gap-2 bg-gradient-to-r shadow-[0_4px_15px_rgba(0,0,0,0.2)] ${editingPayment ? 'from-amber-500 to-orange-600 shadow-[0_4px_15px_rgba(245,158,11,0.4)]' : formOperationType === 'income' ? 'from-green-500 to-emerald-600 shadow-[0_4px_15px_rgba(16,185,129,0.4)]' : 'from-blue-500 to-indigo-600 shadow-[0_4px_15px_rgba(59,130,246,0.4)]'}`}>
+                            <CheckCircle2 size={18} /> {editingPayment ? 'Guardar Cambios' : formOperationType === 'income' ? 'Confirmar Recaudo' : 'Confirmar Pago'}
                         </button>
                     </div>
                 </form>

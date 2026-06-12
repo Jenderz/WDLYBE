@@ -6,7 +6,7 @@ require_once __DIR__ . '/../models/User.php';
 require_once __DIR__ . '/../middleware/auth.php';
 require_once __DIR__ . '/../utils/Response.php';
 
-function handleUsers(string $method, ?string $id = null) {
+function handleUsers(string $method, ?string $id = null, ?string $action = null) {
     $auth = requireRole(['Admin', 'Supervisor']);
 
     switch ($method) {
@@ -20,6 +20,7 @@ function handleUsers(string $method, ?string $id = null) {
             break;
 
         case 'POST':
+            // Special action: toggle-agency (PUT /users/{id}/toggle-agency handled via PUT below)
             $data = getJsonBody();
             if ($auth['role'] === 'Supervisor' && isset($data['role']) && in_array($data['role'], ['Admin', 'Supervisor'])) {
                 jsonError('No tienes permisos para crear usuarios con este rol', 403);
@@ -39,6 +40,17 @@ function handleUsers(string $method, ?string $id = null) {
 
         case 'PUT':
             if (!$id) jsonError('ID requerido');
+
+            // ── Toggle Agency Mode (Admin only) ─────────────────────────
+            if ($action === 'toggle-agency') {
+                requireRole(['Admin']);
+                $user = User::toggleAgency((int)$id);
+                if (!$user) jsonError('Usuario no encontrado o no es Vendedor', 404);
+                $label = $user['is_agency'] ? 'activado' : 'desactivado';
+                jsonSuccess($user, "Modo Agencia $label correctamente");
+                break;
+            }
+
             $data = getJsonBody();
             if ($auth['role'] === 'Supervisor') {
                 $t = User::findById((int)$id);
@@ -56,6 +68,17 @@ function handleUsers(string $method, ?string $id = null) {
 
         case 'DELETE':
             if (!$id) jsonError('ID requerido');
+
+            // ── Purge Agency Data (Admin only) ──────────────────────────
+            if ($action === 'purge-agency') {
+                requireRole(['Admin']);
+                $user = User::findById((int)$id);
+                if (!$user) jsonError('Usuario no encontrado', 404);
+                User::purgeAgencyData((int)$id);
+                jsonSuccess(null, 'Datos de agencia eliminados permanentemente');
+                break;
+            }
+
             if ($auth['role'] === 'Supervisor') {
                 $t = User::findById((int)$id);
                 if ($t && in_array($t['role'], ['Admin', 'Supervisor'])) {

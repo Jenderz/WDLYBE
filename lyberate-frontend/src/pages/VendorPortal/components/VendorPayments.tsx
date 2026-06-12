@@ -57,15 +57,15 @@ export const VendorPayments: React.FC<VendorPaymentsProps> = ({ payments, onOpen
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
                                         <p className="font-bold text-sm text-ios-text">{p.bank} — {p.method}</p>
-                                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${p.type === 'credit' ? 'text-ios-green' : 'text-red-500'}`}>
-                                            {p.type === 'credit' ? 'Cobro/Retiro' : 'Pago a Banca'}
+                                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${p.type === 'payout' ? 'text-blue-500' : p.type === 'credit' ? 'text-ios-green' : 'text-red-500'}`}>
+                                            {p.type === 'payout' ? 'Liquidación de Banca' : p.type === 'credit' ? 'Saldo a Favor' : 'Pago a Banca'}
                                         </p>
                                         <p className="text-xs text-ios-subtext">Ref: {p.reference} · {p.date}</p>
                                     </div>
                                     <StatusBadge status={p.status} />
                                 </div>
-                                <p className={`text-xl font-bold mt-1 tracking-tight ${p.type === 'credit' ? 'text-ios-green' : 'text-ios-text'}`}>
-                                    {p.type === 'credit' ? '+' : '-'}{p.currency} {p.amount.toFixed(2)}
+                                <p className={`text-xl font-bold mt-1 tracking-tight ${p.type === 'payout' ? 'text-blue-500' : p.type === 'credit' ? 'text-ios-green' : 'text-ios-text'}`}>
+                                    {p.type === 'payout' || p.type === 'credit' ? '+' : '-'}{p.currency} {p.amount.toFixed(2)}
                                 </p>
                                 {p.status === 'rejected' && p.adminNote && (
                                     <p className="text-xs text-red-500 mt-1 font-medium bg-red-500/10 px-2 py-1 rounded-lg inline-block border border-red-500/10">

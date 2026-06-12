@@ -7,7 +7,6 @@ interface TicketProps {
     type: 'Cobro' | 'Venta' | 'Pago';
     amountUsd: number;
     amountVes: number;
-    rateVes: number;
     clientName: string;
     agencyName: string;
     date: string;
@@ -29,7 +28,7 @@ interface TicketProps {
     };
 }
 
-export const TicketGenerator = ({ id, type, amountUsd, amountVes, rateVes, clientName, agencyName, date, onClose, saleBreakdown }: TicketProps) => {
+export const TicketGenerator = ({ id, type, amountUsd, amountVes, clientName, agencyName, date, onClose, saleBreakdown }: TicketProps) => {
     const ticketRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -159,9 +158,18 @@ export const TicketGenerator = ({ id, type, amountUsd, amountVes, rateVes, clien
                         <>
                             <div className="flex flex-col items-center justify-center mb-5 bg-gray-50 p-3 rounded-2xl border border-dashed border-gray-200">
                                 <CheckCircle2 size={28} className="text-ios-green mb-1" />
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{type} APROBADA</span>
-                                <h3 className="text-2xl font-black mt-1">${amountUsd.toFixed(2)}</h3>
-                                <p className="text-[11px] text-gray-500 font-medium">Bs. {amountVes.toLocaleString('es-VE')}</p>
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                                    {type.toUpperCase()} {type === 'Venta' ? 'APROBADA' : 'APROBADO'}
+                                </span>
+                                {amountUsd > 0 ? (
+                                    <h3 className="text-2xl font-black mt-1 text-[#1c1c1e] dark:text-white">
+                                        ${amountUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </h3>
+                                ) : (
+                                    <h3 className="text-2xl font-black mt-1 text-[#1c1c1e] dark:text-white">
+                                        Bs. {amountVes.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </h3>
+                                )}
                             </div>
 
                             <div className="space-y-2.5 text-[13px]">
@@ -180,10 +188,6 @@ export const TicketGenerator = ({ id, type, amountUsd, amountVes, rateVes, clien
                                 <div className="flex justify-between items-end border-b border-gray-100 pb-2">
                                     <span className="text-gray-500 text-xs">Agencia</span>
                                     <span className="font-semibold text-right max-w-[150px] truncate">{agencyName}</span>
-                                </div>
-                                <div className="flex justify-between items-end pt-1">
-                                    <span className="text-gray-500 text-xs">Tasa BCV Aplicada</span>
-                                    <span className="font-semibold">Bs. {rateVes.toFixed(2)} / USD</span>
                                 </div>
                             </div>
                         </>

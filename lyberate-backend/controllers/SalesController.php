@@ -16,7 +16,11 @@ function handleSales(string $method, ?string $action = null, ?string $id = null)
             if ($auth['role'] === 'Vendedor') {
                 // Forzar filtro por el seller_id del JWT — no se puede falsificar
                 $filters['seller_id'] = $auth['seller_id'] ?? '';
+                // El vendedor solo ve ventas del ámbito global (las suyas como seller)
+                $filters['owner_user_id'] = 'global';
             } else {
+                // Admin/Supervisor: solo ventas globales, nunca datos de agencias
+                $filters['owner_user_id'] = 'global';
                 if (!empty($_GET['week_id']))   $filters['week_id']   = $_GET['week_id'];
                 if (!empty($_GET['seller_id'])) $filters['seller_id'] = $_GET['seller_id'];
             }
@@ -48,6 +52,16 @@ function handleSales(string $method, ?string $action = null, ?string $id = null)
             requireRole(['Admin', 'Supervisor']);
             Sale::delete((int)$id);
             jsonSuccess(null, 'Venta eliminada');
+            break;
+
+        case 'PUT':
+            if (!$id) jsonError('ID requerido');
+            requireRole(['Admin', 'Supervisor']);
+            $data = getJsonBody();
+            $result = Sale::update((int)$id, $data);
+            if (!$result) jsonError('Venta no encontrada', 404);
+            $sale = Sale::findById((int)$id);
+            jsonSuccess($sale, 'Venta actualizada');
             break;
 
         default:

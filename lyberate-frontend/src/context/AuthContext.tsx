@@ -18,6 +18,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     isAdmin: boolean;
     isVendedor: boolean;
+    isAgency: boolean;
     loading: boolean;
 }
 
@@ -63,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             isAuthenticated: !!user,
             isAdmin: user?.role === 'Admin' || user?.role === 'Supervisor',
             isVendedor: user?.role === 'Vendedor',
+            isAgency: user?.role === 'Vendedor' && !!user?.isAgency,
             loading,
         }}>
             {children}

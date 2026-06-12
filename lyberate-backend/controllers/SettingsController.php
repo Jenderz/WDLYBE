@@ -19,6 +19,12 @@ function handleSettings(string $method, ?string $resource = null, ?string $id = 
         case 'products':
             handleGlobalProducts($method, $id, $db);
             break;
+        case 'payment-methods':
+            handleCatalogs($method, $id, $db, 'payment_methods', 'Método de pago');
+            break;
+        case 'banks':
+            handleCatalogs($method, $id, $db, 'banks', 'Banco');
+            break;
         default:
             jsonError('Recurso no encontrado', 404);
     }
@@ -158,6 +164,70 @@ function handleGlobalProducts(string $method, ?string $id, PDO $db) {
             $stmt = $db->prepare("DELETE FROM global_products WHERE id = ?");
             $stmt->execute([(int)$id]);
             jsonSuccess(null, 'Producto eliminado');
+            break;
+
+        default:
+            jsonError('Método no permitido', 405);
+    }
+}
+
+function handleCatalogs(string $method, ?string $id, PDO $db, string $table, string $resourceName) {
+    switch ($method) {
+        case 'GET':
+            requireAuth();
+            $allowedTables = ['payment_methods', 'banks'];
+            if (!in_array($table, $allowedTables)) jsonError('Tabla no válida', 400);
+
+            $stmt = $db->query("SELECT * FROM `$table` ORDER BY name");
+            jsonSuccess($stmt->fetchAll());
+            break;
+
+        case 'POST':
+            requireRole(['Admin', 'Supervisor']); // O permitir solo Admin si requieres
+            $allowedTables = ['payment_methods', 'banks'];
+            if (!in_array($table, $allowedTables)) jsonError('Tabla no válida', 400);
+
+            $data = getJsonBody();
+            $name = trim($data['name'] ?? '');
+            if (empty($name)) jsonError("$resourceName requerido");
+
+            $stmt = $db->prepare("SELECT id FROM `$table` WHERE name = ?");
+            $stmt->execute([$name]);
+            if ($stmt->fetch()) jsonError("El $resourceName ya existe");
+
+            $stmt = $db->prepare("INSERT INTO `$table` (name) VALUES (?)");
+            $stmt->execute([$name]);
+            jsonSuccess(['id' => (int)$db->lastInsertId(), 'name' => $name], "$resourceName agregado", 201);
+            break;
+
+        case 'PUT':
+            requireRole(['Admin', 'Supervisor']);
+            if (!$id) jsonError('ID requerido');
+            $allowedTables = ['payment_methods', 'banks'];
+            if (!in_array($table, $allowedTables)) jsonError('Tabla no válida', 400);
+
+            $data = getJsonBody();
+            $name = trim($data['name'] ?? '');
+            if (empty($name)) jsonError("$resourceName requerido");
+
+            $stmt = $db->prepare("SELECT id FROM `$table` WHERE name = ? AND id != ?");
+            $stmt->execute([$name, (int)$id]);
+            if ($stmt->fetch()) jsonError("Ese $resourceName ya existe");
+
+            $stmt = $db->prepare("UPDATE `$table` SET name = ? WHERE id = ?");
+            $stmt->execute([$name, (int)$id]);
+            jsonSuccess(null, "$resourceName actualizado");
+            break;
+
+        case 'DELETE':
+            requireRole(['Admin']);
+            if (!$id) jsonError('ID requerido');
+            $allowedTables = ['payment_methods', 'banks'];
+            if (!in_array($table, $allowedTables)) jsonError('Tabla no válida', 400);
+
+            $stmt = $db->prepare("DELETE FROM `$table` WHERE id = ?");
+            $stmt->execute([(int)$id]);
+            jsonSuccess(null, "$resourceName eliminado");
             break;
 
         default:

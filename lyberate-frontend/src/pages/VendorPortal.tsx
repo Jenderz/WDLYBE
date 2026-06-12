@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, LogOut, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, CreditCard, LogOut, CalendarDays, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 // Hooks & Utils
@@ -86,6 +86,28 @@ export const VendorPortal = () => {
                         )}
                     </button>
                 </div>
+
+                {/* Banner Modo Agencia */}
+                {user?.isAgency && (
+                    <button
+                        onClick={() => navigate('/agency')}
+                        className="w-full group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 active:scale-[0.98] transition-all duration-300"
+                    >
+                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative flex items-center gap-4">
+                            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shrink-0">
+                                <Building2 size={24} />
+                            </div>
+                            <div className="text-left flex-1 min-w-0">
+                                <p className="text-sm font-bold">Gestionar Mi Agencia</p>
+                                <p className="text-[11px] text-white/70 mt-0.5">Administra tus sub-vendedores, ventas y recaudaciones</p>
+                            </div>
+                            <svg className="w-5 h-5 text-white/60 group-hover:translate-x-1 transition-transform shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+                )}
 
                 {/* Contenido Dinámico */}
                 <div className="relative">

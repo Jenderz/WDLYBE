@@ -18,6 +18,15 @@ class WeeklyTicket {
             $where[] = "wt.seller_id = ?";
             $params[] = $filters['seller_id'];
         }
+        // Agency scoping
+        if (isset($filters['owner_user_id'])) {
+            if ($filters['owner_user_id'] === 'global') {
+                $where[] = "wt.owner_user_id IS NULL";
+            } else {
+                $where[] = "wt.owner_user_id = ?";
+                $params[] = $filters['owner_user_id'];
+            }
+        }
 
         $sql = "SELECT wt.*, s.name as seller_name FROM weekly_tickets wt LEFT JOIN sellers s ON wt.seller_id = s.id";
         if (!empty($where)) {
@@ -38,12 +47,19 @@ class WeeklyTicket {
     }
 
     /**
-     * Upsert: create or update based on seller_id + week_id + currency
+     * Upsert: create or update based on seller_id + week_id + currency + owner_user_id
      */
     public static function upsert(array $data): array {
         $db = getDB();
-        $stmt = $db->prepare("SELECT * FROM weekly_tickets WHERE seller_id = ? AND week_id = ? AND currency = ?");
-        $stmt->execute([$data['seller_id'], $data['week_id'], $data['currency']]);
+        $ownerUserId = $data['owner_user_id'] ?? null;
+
+        if ($ownerUserId !== null) {
+            $stmt = $db->prepare("SELECT * FROM weekly_tickets WHERE seller_id = ? AND week_id = ? AND currency = ? AND owner_user_id = ?");
+            $stmt->execute([$data['seller_id'], $data['week_id'], $data['currency'], $ownerUserId]);
+        } else {
+            $stmt = $db->prepare("SELECT * FROM weekly_tickets WHERE seller_id = ? AND week_id = ? AND currency = ? AND owner_user_id IS NULL");
+            $stmt->execute([$data['seller_id'], $data['week_id'], $data['currency']]);
+        }
         $existing = $stmt->fetch();
 
         if ($existing) {
@@ -72,8 +88,8 @@ class WeeklyTicket {
         } else {
             // Insert
             $stmt = $db->prepare("INSERT INTO weekly_tickets 
-                (seller_id, week_id, week_label, total_sales, total_prize, total_commission, total_net, total_participation, total_vendor, total_bank, total_paid, balance, currency, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (seller_id, week_id, week_label, total_sales, total_prize, total_commission, total_net, total_participation, total_vendor, total_bank, total_paid, balance, currency, status, owner_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([
                 $data['seller_id'],
                 $data['week_id'],
@@ -89,6 +105,7 @@ class WeeklyTicket {
                 round(floatval($data['balance'] ?? 0), 2),
                 $data['currency'],
                 $data['status'] ?? 'open',
+                $ownerUserId,
             ]);
             $id = (int) $db->lastInsertId();
             return self::findById($id);

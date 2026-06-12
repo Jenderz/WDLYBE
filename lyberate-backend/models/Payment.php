@@ -26,6 +26,15 @@ class Payment {
             $where[] = "p.user_id = ?";
             $params[] = $filters['user_id'];
         }
+        // Agency scoping
+        if (isset($filters['owner_user_id'])) {
+            if ($filters['owner_user_id'] === 'global') {
+                $where[] = "p.owner_user_id IS NULL";
+            } else {
+                $where[] = "p.owner_user_id = ?";
+                $params[] = $filters['owner_user_id'];
+            }
+        }
 
         $sql = "SELECT p.*, u.name as vendor_name, sl.name as seller_name 
                 FROM payments p 
@@ -56,8 +65,8 @@ class Payment {
     public static function create(array $data): int {
         $db = getDB();
         $stmt = $db->prepare("INSERT INTO payments 
-            (user_id, seller_id, week_label, week_id, amount, currency, bank, method, reference, payment_date, status, type, proof_image_path, admin_note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            (user_id, seller_id, week_label, week_id, amount, currency, bank, method, reference, payment_date, status, type, proof_image_path, admin_note, owner_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $data['user_id'],
             $data['seller_id'],
@@ -73,6 +82,7 @@ class Payment {
             $data['type'] ?? 'payment',
             $data['proof_image_path'] ?? null,
             $data['admin_note'] ?? null,
+            $data['owner_user_id'] ?? null,
         ]);
         return (int) $db->lastInsertId();
     }
@@ -148,5 +158,51 @@ class Payment {
 
     public static function getByVendor(int $sellerId): array {
         return self::getAll(['seller_id' => $sellerId]);
+    }
+
+    /**
+     * Full update of a payment record (for editing, not just status changes).
+     * Handles weekly_ticket recalculation if amount/week/currency changed.
+     */
+    public static function update(int $id, array $data): bool {
+        $db = getDB();
+        $existing = self::findById($id);
+        if (!$existing) return false;
+
+        // If the payment was approved and financial fields are changing, reverse the old ticket first
+        $wasApproved = $existing['status'] === 'approved';
+        $oldType = $existing['type'] ?? 'payment';
+
+        if ($wasApproved && $oldType !== 'credit') {
+            self::applyToWeeklyTicket($existing, true); // Reverse old amount
+        }
+
+        $stmt = $db->prepare("UPDATE payments SET 
+            seller_id = ?, week_label = ?, week_id = ?, amount = ?, currency = ?,
+            bank = ?, method = ?, reference = ?, payment_date = ?, type = ?, updated_at = NOW()
+            WHERE id = ?");
+        $result = $stmt->execute([
+            $data['seller_id'] ?? $existing['seller_id'],
+            $data['week_label'] ?? $existing['week_label'],
+            $data['week_id'] ?? $existing['week_id'],
+            abs(floatval($data['amount'] ?? $existing['amount'])),
+            $data['currency'] ?? $existing['currency'],
+            $data['bank'] ?? $existing['bank'],
+            $data['method'] ?? $existing['method'],
+            $data['reference'] ?? $existing['reference'],
+            $data['payment_date'] ?? $existing['payment_date'],
+            $data['type'] ?? $oldType,
+            $id,
+        ]);
+
+        // Re-apply the new amount to weekly ticket if still approved
+        if ($wasApproved && ($data['type'] ?? $oldType) !== 'credit') {
+            $updated = self::findById($id);
+            if ($updated) {
+                self::applyToWeeklyTicket($updated, false);
+            }
+        }
+
+        return $result;
     }
 }

@@ -19,21 +19,23 @@ function handleAuth(string $method, string $action) {
             }
 
             $token = generateJWT([
-                'userId'   => $user['id'],
-                'role'     => $user['role'],
-                'email'    => $user['email'],
+                'userId'    => $user['id'],
+                'role'      => $user['role'],
+                'email'     => $user['email'],
                 'seller_id' => $user['seller_id'],
+                'is_agency' => (bool)($user['is_agency'] ?? false),
             ]);
 
             jsonSuccess([
                 'token' => $token,
                 'user' => [
-                    'id' => $user['id'],
-                    'name' => $user['name'],
-                    'email' => $user['email'],
-                    'role' => $user['role'],
-                    'sellerId' => $user['seller_id'],
+                    'id'         => $user['id'],
+                    'name'       => $user['name'],
+                    'email'      => $user['email'],
+                    'role'       => $user['role'],
+                    'sellerId'   => $user['seller_id'],
                     'agencyName' => $user['agency_name'],
+                    'isAgency'   => (bool)($user['is_agency'] ?? false),
                 ],
             ], 'Login exitoso');
             break;
@@ -43,12 +45,13 @@ function handleAuth(string $method, string $action) {
             $user = User::findById($auth['userId']);
             if (!$user) jsonError('Usuario no encontrado', 404);
             jsonSuccess([
-                'id' => $user['id'],
-                'name' => $user['name'],
-                'email' => $user['email'],
-                'role' => $user['role'],
-                'sellerId' => $user['seller_id'],
+                'id'         => $user['id'],
+                'name'       => $user['name'],
+                'email'      => $user['email'],
+                'role'       => $user['role'],
+                'sellerId'   => $user['seller_id'],
                 'agencyName' => $user['agency_name'],
+                'isAgency'   => (bool)($user['is_agency'] ?? false),
             ]);
             break;
 

@@ -17,6 +17,7 @@ export interface AppUser {
     role: Role;
     sellerId?: string | number | null;
     agencyName?: string;
+    isAgency?: boolean;
 }
 
 export interface SystemPrefs {
@@ -50,7 +51,7 @@ export interface Seller {
 
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentMethod = 'Transferencia' | 'Zelle' | 'Pago Móvil' | 'Efectivo' | 'Otro';
-export type PaymentType = 'payment' | 'credit';
+export type PaymentType = 'payment' | 'credit' | 'payout';
 
 export interface Payment {
     id: string | number;
@@ -198,6 +199,7 @@ function mapUser(u: any): AppUser {
         role: u.role,
         sellerId: u.seller_id ?? u.sellerId ?? null,
         agencyName: u.agency_name ?? u.agencyName ?? '',
+        isAgency: !!(u.is_agency ?? u.isAgency ?? false),
     };
 }
 
@@ -616,6 +618,51 @@ export async function deleteSale(saleId: string | number): Promise<void> {
     await apiRequest(`/sales/${saleId}`, { method: 'DELETE' });
 }
 
+export async function updateSale(saleId: string | number, sale: Partial<Sale>): Promise<Sale> {
+    const payload: any = {};
+    if (sale.sellerId !== undefined) payload.seller_id = sale.sellerId;
+    if (sale.agencyId !== undefined) payload.agency_id = sale.agencyId || null;
+    if (sale.productName !== undefined) payload.product_name = sale.productName;
+    if (sale.currencyName !== undefined) payload.currency_name = sale.currencyName;
+    if (sale.amount !== undefined) payload.amount = sale.amount;
+    if (sale.prize !== undefined) payload.prize = sale.prize;
+    if (sale.commission !== undefined) payload.commission = sale.commission;
+    if (sale.total !== undefined) payload.total = sale.total;
+    if (sale.participation !== undefined) payload.participation = sale.participation;
+    if (sale.totalVendor !== undefined) payload.total_vendor = sale.totalVendor;
+    if (sale.totalBank !== undefined) payload.total_bank = sale.totalBank;
+    if (sale.date !== undefined) payload.sale_date = sale.date;
+    if (sale.weekId !== undefined) payload.week_id = sale.weekId;
+    const data = await apiRequest(`/sales/${saleId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return mapSale(data);
+}
+
+export async function updatePayment(
+    paymentId: string | number,
+    payment: Partial<Payment> & { weekLabel?: string }
+): Promise<Payment> {
+    const payload: any = {};
+    if (payment.sellerId !== undefined) payload.seller_id = payment.sellerId;
+    if (payment.week !== undefined) payload.week_label = payment.week;
+    if ((payment as any).weekLabel !== undefined) payload.week_label = (payment as any).weekLabel;
+    if (payment.weekId !== undefined) payload.week_id = payment.weekId;
+    if (payment.amount !== undefined) payload.amount = Math.abs(payment.amount);
+    if (payment.currency !== undefined) payload.currency = payment.currency;
+    if (payment.bank !== undefined) payload.bank = payment.bank;
+    if (payment.method !== undefined) payload.method = payment.method;
+    if (payment.reference !== undefined) payload.reference = payment.reference;
+    if (payment.date !== undefined) payload.payment_date = payment.date;
+    if (payment.type !== undefined) payload.type = payment.type;
+    const data = await apiRequest(`/payments/${paymentId}/edit`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return mapPayment(data);
+}
+
 // ─── Agency Helpers ─────────────────────────────────────────────────────────
 
 export async function getAgencies(): Promise<Agency[]> {
@@ -842,9 +889,386 @@ export async function deleteGlobalProduct(name: string): Promise<void> {
     }
 }
 
+// ─── Payment Methods ────────────────────────────────────────────────────────
+
+export async function getPaymentMethods(): Promise<string[]> {
+    const data = await apiRequest('/settings/payment-methods');
+    return (data as any[]).map((p: any) => p.name);
+}
+
+export async function addPaymentMethod(name: string): Promise<boolean> {
+    try {
+        await apiRequest('/settings/payment-methods', {
+            method: 'POST',
+            body: JSON.stringify({ name }),
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function updatePaymentMethod(oldName: string, newName: string): Promise<boolean> {
+    try {
+        const data = await apiRequest('/settings/payment-methods');
+        const method = (data as any[]).find((p: any) => p.name === oldName);
+        if (!method) return false;
+
+        await apiRequest(`/settings/payment-methods/${method.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: newName }),
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function deletePaymentMethod(name: string): Promise<void> {
+    const data = await apiRequest('/settings/payment-methods');
+    const method = (data as any[]).find((p: any) => p.name === name);
+    if (method) {
+        await apiRequest(`/settings/payment-methods/${method.id}`, { method: 'DELETE' });
+    }
+}
+
+// ─── Banks ──────────────────────────────────────────────────────────────────
+
+export async function getBanks(): Promise<string[]> {
+    const data = await apiRequest('/settings/banks');
+    return (data as any[]).map((b: any) => b.name);
+}
+
+export async function addBank(name: string): Promise<boolean> {
+    try {
+        await apiRequest('/settings/banks', {
+            method: 'POST',
+            body: JSON.stringify({ name }),
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function updateBank(oldName: string, newName: string): Promise<boolean> {
+    try {
+        const data = await apiRequest('/settings/banks');
+        const bank = (data as any[]).find((b: any) => b.name === oldName);
+        if (!bank) return false;
+
+        await apiRequest(`/settings/banks/${bank.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: newName }),
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function deleteBank(name: string): Promise<void> {
+    const data = await apiRequest('/settings/banks');
+    const bank = (data as any[]).find((b: any) => b.name === name);
+    if (bank) {
+        await apiRequest(`/settings/banks/${bank.id}`, { method: 'DELETE' });
+    }
+}
+
 // ─── Dashboard Stats ────────────────────────────────────────────────────────
+
 
 export async function getDashboardStats(weekId?: string): Promise<any> {
     const qs = weekId ? `?week_id=${weekId}` : '';
     return await apiRequest(`/dashboard/stats${qs}`);
+}
+
+// ─── Seller Aliases ─────────────────────────────────────────────────────────
+
+export async function getSellerAliases(): Promise<Record<string, number>> {
+    const data = await apiRequest('/seller-aliases');
+    return data as Record<string, number>;
+}
+
+export async function addSellerAlias(sellerId: string | number, aliasName: string): Promise<void> {
+    await apiRequest('/seller-aliases', {
+        method: 'POST',
+        body: JSON.stringify({ seller_id: sellerId, alias_name: aliasName }),
+    });
+}
+
+// ─── Agency Portal API ────────────────────────────────────────────────────────
+// All requests are scoped server-side to owner_user_id from JWT.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Toggle Modo Agencia on/off for a user (Admin only) */
+export async function toggleAgencyMode(userId: string | number): Promise<AppUser> {
+    const data = await apiRequest(`/users/${userId}/toggle-agency`, { method: 'PUT' });
+    return mapUser(data);
+}
+
+/** Permanently delete all isolated agency data (Admin only) */
+export async function purgeAgencyData(userId: string | number): Promise<void> {
+    await apiRequest(`/users/${userId}/purge-agency`, { method: 'DELETE' });
+}
+
+// ── Agency Sub-Sellers ───────────────────────────────────────────────────────
+
+export async function getAgencySellers(): Promise<Seller[]> {
+    const data = await apiRequest('/agency/sellers');
+    return (data as any[]).map(mapSeller);
+}
+
+export async function addAgencySeller(
+    seller: Omit<Seller, 'id' | 'createdAt'>
+): Promise<Seller> {
+    const payload = {
+        name: seller.name,
+        id_number: seller.idNumber || null,
+        phone: seller.phone || null,
+        products: (seller.products || []).map(p => ({
+            name: p.name,
+            currencies: (p.currencies || []).map(c => ({
+                name: c.name,
+                commission_pct: c.commissionPct,
+                part_pct: c.partPct,
+            })),
+        })),
+    };
+    const data = await apiRequest('/agency/sellers', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return mapSeller(data);
+}
+
+export async function updateAgencySeller(updated: Seller): Promise<void> {
+    const payload = {
+        name: updated.name,
+        id_number: updated.idNumber || null,
+        phone: updated.phone || null,
+        products: (updated.products || []).map(p => ({
+            name: p.name,
+            currencies: (p.currencies || []).map(c => ({
+                name: c.name,
+                commission_pct: c.commissionPct,
+                part_pct: c.partPct,
+            })),
+        })),
+    };
+    await apiRequest(`/agency/sellers/${updated.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteAgencySeller(sellerId: string | number): Promise<void> {
+    await apiRequest(`/agency/sellers/${sellerId}`, { method: 'DELETE' });
+}
+
+// ── Agency Sales ─────────────────────────────────────────────────────────────
+
+export async function getAgencySales(filters?: { weekId?: string; sellerId?: string | number }): Promise<Sale[]> {
+    const qs = new URLSearchParams();
+    if (filters?.weekId)   qs.set('week_id', filters.weekId);
+    if (filters?.sellerId) qs.set('seller_id', String(filters.sellerId));
+    const data = await apiRequest(`/agency/sales${qs.toString() ? '?' + qs.toString() : ''}`);
+    return (data as any[]).map(mapSale);
+}
+
+export async function addAgencySale(sale: Omit<Sale, 'id' | 'createdAt'>): Promise<Sale> {
+    const payload = {
+        seller_id:    sale.sellerId,
+        product_name: sale.productName,
+        currency_name: sale.currencyName,
+        amount:        sale.amount,
+        prize:         sale.prize || 0,
+        commission:    sale.commission || 0,
+        total:         sale.total || 0,
+        participation: sale.participation || 0,
+        total_vendor:  sale.totalVendor || 0,
+        total_bank:    sale.totalBank || 0,
+        sale_date:     sale.date,
+        week_id:       sale.weekId,
+        registered_at: sale.registeredAt || new Date().toISOString(),
+    };
+    const data = await apiRequest('/agency/sales', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return mapSale(data);
+}
+
+export async function addAgencySaleBatch(
+    sales: Array<Omit<Sale, 'id' | 'createdAt'>>
+): Promise<{ imported: number }> {
+    const payload = {
+        sales: sales.map(s => ({
+            seller_id:     s.sellerId,
+            product_name:  s.productName,
+            currency_name: s.currencyName,
+            amount:        s.amount,
+            prize:         s.prize || 0,
+            commission:    s.commission || 0,
+            total:         s.total || 0,
+            participation: s.participation || 0,
+            total_vendor:  s.totalVendor || 0,
+            total_bank:    s.totalBank || 0,
+            sale_date:     s.date,
+            week_id:       s.weekId,
+            registered_at: s.registeredAt || new Date().toISOString(),
+        })),
+    };
+    return await apiRequest('/agency/sales/batch', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateAgencySale(saleId: string | number, sale: Partial<Sale>): Promise<Sale> {
+    const payload: any = {};
+    if (sale.sellerId !== undefined)     payload.seller_id     = sale.sellerId;
+    if (sale.productName !== undefined)  payload.product_name  = sale.productName;
+    if (sale.currencyName !== undefined) payload.currency_name = sale.currencyName;
+    if (sale.amount !== undefined)       payload.amount        = sale.amount;
+    if (sale.prize !== undefined)        payload.prize         = sale.prize;
+    if (sale.commission !== undefined)   payload.commission    = sale.commission;
+    if (sale.total !== undefined)        payload.total         = sale.total;
+    if (sale.participation !== undefined) payload.participation = sale.participation;
+    if (sale.totalVendor !== undefined)  payload.total_vendor  = sale.totalVendor;
+    if (sale.totalBank !== undefined)    payload.total_bank    = sale.totalBank;
+    if (sale.date !== undefined)         payload.sale_date     = sale.date;
+    if (sale.weekId !== undefined)       payload.week_id       = sale.weekId;
+    const data = await apiRequest(`/agency/sales/${saleId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return mapSale(data);
+}
+
+export async function deleteAgencySale(saleId: string | number): Promise<void> {
+    await apiRequest(`/agency/sales/${saleId}`, { method: 'DELETE' });
+}
+
+// ── Agency Payments ──────────────────────────────────────────────────────────
+
+export async function getAgencyPayments(filters?: { weekId?: string; sellerId?: string | number; status?: string }): Promise<Payment[]> {
+    const qs = new URLSearchParams();
+    if (filters?.weekId)   qs.set('week_id', filters.weekId);
+    if (filters?.sellerId) qs.set('seller_id', String(filters.sellerId));
+    if (filters?.status)   qs.set('status', filters.status);
+    const data = await apiRequest(`/agency/payments${qs.toString() ? '?' + qs.toString() : ''}`);
+    return (data as any[]).map(mapPayment);
+}
+
+export async function addAgencyPayment(
+    payment: Omit<Payment, 'id' | 'createdAt' | 'updatedAt'> & { proofBase64?: string }
+): Promise<Payment> {
+    const payload: any = {
+        seller_id:    payment.sellerId,
+        week_label:   payment.week,
+        week_id:      payment.weekId,
+        amount:       Math.abs(payment.amount),
+        currency:     payment.currency,
+        bank:         payment.bank,
+        method:       payment.method,
+        reference:    payment.reference,
+        payment_date: payment.date,
+        status:       payment.status || 'approved',
+        type:         payment.type || 'payment',
+        admin_note:   payment.adminNote || null,
+    };
+    if (payment.proofBase64) payload.proof_base64 = payment.proofBase64;
+    const data = await apiRequest('/agency/payments', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return mapPayment(data);
+}
+
+export async function updateAgencyPaymentStatus(
+    paymentId: string | number,
+    status: PaymentStatus,
+    adminNote?: string
+): Promise<boolean> {
+    try {
+        await apiRequest(`/agency/payments/${paymentId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ status, admin_note: adminNote }),
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function updateAgencyPayment(
+    paymentId: string | number,
+    payment: Partial<Payment> & { weekLabel?: string }
+): Promise<Payment> {
+    const payload: any = {};
+    if (payment.sellerId !== undefined)  payload.seller_id    = payment.sellerId;
+    if (payment.week !== undefined)      payload.week_label   = payment.week;
+    if ((payment as any).weekLabel)      payload.week_label   = (payment as any).weekLabel;
+    if (payment.weekId !== undefined)    payload.week_id      = payment.weekId;
+    if (payment.amount !== undefined)    payload.amount       = Math.abs(payment.amount);
+    if (payment.currency !== undefined)  payload.currency     = payment.currency;
+    if (payment.bank !== undefined)      payload.bank         = payment.bank;
+    if (payment.method !== undefined)    payload.method       = payment.method;
+    if (payment.reference !== undefined) payload.reference    = payment.reference;
+    if (payment.date !== undefined)      payload.payment_date = payment.date;
+    if (payment.type !== undefined)      payload.type         = payment.type;
+    const data = await apiRequest(`/agency/payments/${paymentId}/edit`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    });
+    return mapPayment(data);
+}
+
+// ── Agency Weekly Tickets ────────────────────────────────────────────────────
+
+export async function getAgencyWeeklyTickets(filters?: { weekId?: string; sellerId?: string | number }): Promise<WeeklyTicket[]> {
+    const qs = new URLSearchParams();
+    if (filters?.weekId)   qs.set('week_id', filters.weekId);
+    if (filters?.sellerId) qs.set('seller_id', String(filters.sellerId));
+    const data = await apiRequest(`/agency/weekly-tickets${qs.toString() ? '?' + qs.toString() : ''}`);
+    return (data as any[]).map(mapWeeklyTicket);
+}
+
+export async function upsertAgencyWeeklyTicket(
+    ticket: Omit<WeeklyTicket, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<WeeklyTicket> {
+    const payload = {
+        seller_id:          ticket.sellerId,
+        week_id:            ticket.weekId,
+        week_label:         ticket.weekLabel,
+        total_sales:        ticket.totalSales,
+        total_prize:        ticket.totalPrize,
+        total_commission:   ticket.totalCommission,
+        total_net:          ticket.totalNet,
+        total_participation: ticket.totalParticipation,
+        total_vendor:       ticket.totalVendor,
+        total_bank:         ticket.totalBank,
+        total_paid:         ticket.totalPaid,
+        balance:            ticket.balance,
+        currency:           ticket.currency,
+        status:             ticket.status,
+    };
+    const data = await apiRequest('/agency/weekly-tickets', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+    return mapWeeklyTicket(data);
+}
+
+// ── Agency Catalogs (read-only global) ───────────────────────────────────────
+
+export async function getAgencyProducts(): Promise<string[]> {
+    const data = await apiRequest('/agency/products');
+    return data as string[];
+}
+
+export async function getAgencyCurrencies(): Promise<string[]> {
+    const data = await apiRequest('/agency/currencies');
+    return data as string[];
 }

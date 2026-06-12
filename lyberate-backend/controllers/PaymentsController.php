@@ -27,8 +27,11 @@ function handlePayments(string $method, ?string $action = null, ?string $id = nu
             // Vendedor solo puede ver sus propios pagos (seller_id forzado desde JWT)
             $filters = [];
             if ($auth['role'] === 'Vendedor') {
-                $filters['seller_id'] = $auth['seller_id'] ?? '';
+                $filters['seller_id']      = $auth['seller_id'] ?? '';
+                $filters['owner_user_id']  = 'global';
             } elseif (in_array($auth['role'], ['Admin', 'Supervisor', 'Banca'])) {
+                // Admin/Supervisor/Banca: solo pagos globales, nunca datos de agencias
+                $filters['owner_user_id'] = 'global';
                 if (!empty($_GET['week_id']))   $filters['week_id']   = $_GET['week_id'];
                 if (!empty($_GET['seller_id'])) $filters['seller_id'] = $_GET['seller_id'];
                 if (!empty($_GET['status']))    $filters['status']    = $_GET['status'];
@@ -89,14 +92,24 @@ function handlePayments(string $method, ?string $action = null, ?string $id = nu
             if (!$id) jsonError('ID requerido');
             requireRole(['Admin', 'Supervisor']);
             $data = getJsonBody();
-            $err = validateRequired($data, ['status']);
-            if ($err) jsonError($err);
 
-            $result = Payment::updateStatus((int)$id, $data['status'], $data['admin_note'] ?? null);
-            if (!$result) jsonError('Pago no encontrado', 404);
+            if ($action === 'edit') {
+                // Full edit of payment data
+                $result = Payment::update((int)$id, $data);
+                if (!$result) jsonError('Pago no encontrado', 404);
+                $payment = Payment::findById((int)$id);
+                jsonSuccess($payment, 'Pago actualizado');
+            } else {
+                // Status-only update (approve/reject)
+                $err = validateRequired($data, ['status']);
+                if ($err) jsonError($err);
 
-            $payment = Payment::findById((int)$id);
-            jsonSuccess($payment, 'Estado actualizado');
+                $result = Payment::updateStatus((int)$id, $data['status'], $data['admin_note'] ?? null);
+                if (!$result) jsonError('Pago no encontrado', 404);
+
+                $payment = Payment::findById((int)$id);
+                jsonSuccess($payment, 'Estado actualizado');
+            }
             break;
 
         default:

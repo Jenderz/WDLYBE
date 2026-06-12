@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Search, Edit2, Trash2, X, Plus, Shield, UserCog, Building2, TrendingUp, BookOpen, Globe, Package
+    Search, Edit2, Trash2, X, Plus, Shield, UserCog, Building2, TrendingUp, BookOpen, Globe, Package, Landmark, Wallet
 } from 'lucide-react';
 import {
     getUsers, addUser, updateUser, deleteUser, AppUser, Role,
     getSystemPrefs, updateSystemPrefs, SystemPrefs,
     getAvailableCurrencies, addAvailableCurrency, updateAvailableCurrency, deleteAvailableCurrency,
-    getGlobalProducts, addGlobalProduct, updateGlobalProduct, deleteGlobalProduct
+    getGlobalProducts, addGlobalProduct, updateGlobalProduct, deleteGlobalProduct,
+    getPaymentMethods, addPaymentMethod, updatePaymentMethod, deletePaymentMethod,
+    getBanks, addBank, updateBank, deleteBank
 } from '../services/apiService';
 
 export const Settings = () => {
@@ -307,13 +309,25 @@ const SettingsRisks = () => {
 const SettingsCatalogs = () => {
     const [currencies, setCurrencies] = useState<string[]>([]);
     const [products, setProducts] = useState<string[]>([]);
+    const [methods, setMethods] = useState<string[]>([]);
+    const [banks, setBanks] = useState<string[]>([]);
+
     const [newCurrency, setNewCurrency] = useState('');
     const [newProduct, setNewProduct] = useState('');
+    const [newMethod, setNewMethod] = useState('');
+    const [newBank, setNewBank] = useState('');
 
     const refresh = async () => {
-        const [c, p] = await Promise.all([getAvailableCurrencies(), getGlobalProducts()]);
+        const [c, p, m, b] = await Promise.all([
+            getAvailableCurrencies(), 
+            getGlobalProducts(),
+            getPaymentMethods(),
+            getBanks()
+        ]);
         setCurrencies(c);
         setProducts(p);
+        setMethods(m);
+        setBanks(b);
     };
 
     useEffect(() => { refresh(); }, []);
@@ -372,6 +386,60 @@ const SettingsCatalogs = () => {
         }
     };
 
+    const handleAddMethod = async () => {
+        if (!newMethod) return;
+        const ok = await addPaymentMethod(newMethod);
+        if (ok) {
+            setNewMethod('');
+            await refresh();
+        } else {
+            alert('El método ya existe o hubo un error.');
+        }
+    };
+
+    const handleEditMethod = async (oldName: string) => {
+        const newName = window.prompt('Nuevo nombre para el método de pago:', oldName);
+        if (newName && newName.trim() !== '' && newName !== oldName) {
+            const ok = await updatePaymentMethod(oldName, newName.trim());
+            if (ok) await refresh();
+            else alert('Error al actualizar o el método ya existe.');
+        }
+    };
+
+    const handleDeleteMethod = async (name: string) => {
+        if (window.confirm(`¿Estás seguro de eliminar el método de pago "${name}"?`)) {
+            await deletePaymentMethod(name);
+            await refresh();
+        }
+    };
+
+    const handleAddBank = async () => {
+        if (!newBank) return;
+        const ok = await addBank(newBank);
+        if (ok) {
+            setNewBank('');
+            await refresh();
+        } else {
+            alert('El banco ya existe o hubo un error.');
+        }
+    };
+
+    const handleEditBank = async (oldName: string) => {
+        const newName = window.prompt('Nuevo nombre para el banco:', oldName);
+        if (newName && newName.trim() !== '' && newName !== oldName) {
+            const ok = await updateBank(oldName, newName.trim());
+            if (ok) await refresh();
+            else alert('Error al actualizar o el banco ya existe.');
+        }
+    };
+
+    const handleDeleteBank = async (name: string) => {
+        if (window.confirm(`¿Estás seguro de eliminar el banco "${name}"?`)) {
+            await deleteBank(name);
+            await refresh();
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in flex-1">
             <div className="max-w-2xl">
@@ -415,6 +483,46 @@ const SettingsCatalogs = () => {
                                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => handleEditProduct(p)} className="p-1 text-ios-blue hover:bg-ios-blue/10 rounded-md"><Edit2 size={14} /></button>
                                         <button onClick={() => handleDeleteProduct(p)} className="p-1 text-ios-red hover:bg-ios-red/10 rounded-md"><Trash2 size={14} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Métodos de Pago */}
+                    <div className="bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5 space-y-4 flex flex-col">
+                        <h3 className="font-bold text-sm tracking-widest uppercase flex items-center gap-2 text-ios-subtext"><Wallet size={16} /> Métodos de Pago</h3>
+                        <div className="flex gap-2">
+                            <input type="text" value={newMethod} onChange={e => setNewMethod(e.target.value)} placeholder="Ej: Zelle" className="flex-1 px-3 py-2 rounded-xl bg-white/50 dark:bg-black/50 border-none outline-none text-xs font-bold" />
+                            <button onClick={handleAddMethod} className="bg-ios-blue p-2 rounded-xl text-white hover:bg-blue-600 transition-colors"><Plus size={16} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto max-h-48 space-y-1 pr-2 no-scrollbar">
+                            {methods.map(m => (
+                                <div key={m} className="flex items-center justify-between px-3 py-2 bg-white/30 dark:bg-black/30 rounded-lg text-xs font-bold tracking-tight border border-black/5 dark:border-white/5 opacity-80 group">
+                                    <span>{m}</span>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleEditMethod(m)} className="p-1 text-ios-blue hover:bg-ios-blue/10 rounded-md"><Edit2 size={14} /></button>
+                                        <button onClick={() => handleDeleteMethod(m)} className="p-1 text-ios-red hover:bg-ios-red/10 rounded-md"><Trash2 size={14} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Bancos */}
+                    <div className="bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5 space-y-4 flex flex-col">
+                        <h3 className="font-bold text-sm tracking-widest uppercase flex items-center gap-2 text-ios-subtext"><Landmark size={16} /> Bancos / Destinos</h3>
+                        <div className="flex gap-2">
+                            <input type="text" value={newBank} onChange={e => setNewBank(e.target.value)} placeholder="Ej: Banesco" className="flex-1 px-3 py-2 rounded-xl bg-white/50 dark:bg-black/50 border-none outline-none text-xs font-bold" />
+                            <button onClick={handleAddBank} className="bg-ios-blue p-2 rounded-xl text-white hover:bg-blue-600 transition-colors"><Plus size={16} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto max-h-48 space-y-1 pr-2 no-scrollbar">
+                            {banks.map(b => (
+                                <div key={b} className="flex items-center justify-between px-3 py-2 bg-white/30 dark:bg-black/30 rounded-lg text-xs font-bold tracking-tight border border-black/5 dark:border-white/5 opacity-80 group">
+                                    <span>{b}</span>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => handleEditBank(b)} className="p-1 text-ios-blue hover:bg-ios-blue/10 rounded-md"><Edit2 size={14} /></button>
+                                        <button onClick={() => handleDeleteBank(b)} className="p-1 text-ios-red hover:bg-ios-red/10 rounded-md"><Trash2 size={14} /></button>
                                     </div>
                                 </div>
                             ))}
