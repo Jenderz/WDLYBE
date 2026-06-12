@@ -1,0 +1,44 @@
+\n--- ARCHIVO: AMERICANAS $.xlsx ---
+Leídas 19 filas.
+Primeras 15 filas:
+["WCENTER"]\n[]\n["Nombre","Venta","Comisión","Participación","Premios"]\n["GORDO MAYOR SB.- WCENTER ( G CLOVER )",2846.6,0,264.59,2405.61]\n["EANTUNEZ TERMINAL SB.- WCENTER ( G CLOVER )",282,0,-13.17,303.95]\n["MULTIDEPORTES JD SB.- WCENTER ( G CLOVER )",1157.8,0,71.93,1037.91]\n["MAGE SB.- WCENTER (GREEN CLOVER) (STREAM)",2372.9,0,220,2006.23]\n["LUISTORRES SB.- WCENTER (G CLOVER)",122,0,8.4,108]\n["SANTA ANITA SB.- (STREAM) WCENTER (G CLOVER)",806.9,0,80.93,672.01]\n["PA QUE JONATHAN.- WCENTER (G CLOVER) (STREAM)",41.3,0,18.72,10.1]\n["EL YUKA.- WCENTER (G CLOVER)",940.1,0,113.18,751.47]\n["$MATUCON - WCENTER (G CLOVER)",1410,0,240.72,1008.8]\n["DULCINEA- WCENTER -(GCLOVER)",40726.1,0,4213.79,33703.11]\n["YEIBE LA LUCHA.- WCENTER (G CLOVER)",72.8,0,26.43,28.75]\n["MULATA .-WCENTER (G CLOVER)",5104,0,806.37,3760.05]
+[Heurística 1] Encontrado en fila 2: Vendedor:0(Nombre), Ventas:1(Venta), Premios:4(Premios)
+=> ÉXITO. Filas a procesar:
+  Row 0: Vendedor='GORDO MAYOR SB.- WCENTER ( G CLOVER )', Ventas='2846.6', Premios='2405.61'
+  Row 1: Vendedor='EANTUNEZ TERMINAL SB.- WCENTER ( G CLOVER )', Ventas='282', Premios='303.95'
+  Row 2: Vendedor='MULTIDEPORTES JD SB.- WCENTER ( G CLOVER )', Ventas='1157.8', Premios='1037.91'
+  Row 3: Vendedor='MAGE SB.- WCENTER (GREEN CLOVER) (STREAM)', Ventas='2372.9', Premios='2006.23'
+  Row 4: Vendedor='LUISTORRES SB.- WCENTER (G CLOVER)', Ventas='122', Premios='108'
+\n--- ARCHIVO: AMERICANAS BS.xlsx ---
+Leídas 12 filas.
+Primeras 15 filas:
+["WCENTER"]\n[]\n["Nombre","Venta","Comisión","Participación","Premios"]\n["BS LLANO GRANDE-WCENTER (GCLOVER)",19000,0,-20400,53000]\n["BS YEIBE LA LUCHA.- WCENTER (G CLOVER)",26600,0,5052,18180]\n["BS MATUCON - WCENTER (G CLOVER)",146000,0,41820,76300]\n["BS DULCINEA- WCENTER (GCLOVER)",257000,0,6084,246860]\n["BS AG LA REDOMA.- WCENTER (STREM)( G CLOVER )",59090,0,14964.6,34149]\n["BS MAGE SB.- WCENTER (GREEN CLOVER BS)",573500,0,165162,298230]\n["BS SANTA ANITA SB.- WCENTER (G CLOVER BS)",226970,0,30650.4,175886]\n[]\n["TOTAL",1308160,0,243333,902605]
+[Heurística 1] Encontrado en fila 2: Vendedor:0(Nombre), Ventas:1(Venta), Premios:4(Premios)
+=> ÉXITO. Filas a procesar:
+  Row 0: Vendedor='BS LLANO GRANDE-WCENTER (GCLOVER)', Ventas='19000', Premios='53000'
+  Row 1: Vendedor='BS YEIBE LA LUCHA.- WCENTER (G CLOVER)', Ventas='26600', Premios='18180'
+  Row 2: Vendedor='BS MATUCON - WCENTER (G CLOVER)', Ventas='146000', Premios='76300'
+  Row 3: Vendedor='BS DULCINEA- WCENTER (GCLOVER)', Ventas='257000', Premios='246860'
+  Row 4: Vendedor='BS AG LA REDOMA.- WCENTER (STREM)( G CLOVER )', Ventas='59090', Premios='34149'
+\n--- ARCHIVO: NACIONALES DOLARES.xlsx ---
+Leídas 14 filas.
+Primeras 15 filas:
+["WCENTER"]\n[]\n["Vendedor","Venta","Pago","Saldo","%"]\n["MULTIDEPORTES JD",97,56,41,7.76]\n["GORDO MAYOR",33,18.55,14.45,2.64]\n["LUISTORRES",150,140,10,12]\n["PA QUE JUANCHO SAN JACINTO",345,250.22,94.78,27.6]\n["DULCINEA URUMACO",2302,1713.88,588.12,184.16]\n["SB SANTA ANITA1",86,77.43,8.57,6.88]\n["MAGE1",467,353.5,113.5,37.36]\n["ELYUKA",207,143.4,63.6,16.56]\n[]\n[]\n["TOTAL",3687,2752.98,934.02,294.96]
+[IA Fallback] Encontrado a partir de fila data 3 -> header 2: Vendedor:0, Ventas:1, Premios:2
+=> ÉXITO. Filas a procesar:
+  Row 0: Vendedor='MULTIDEPORTES JD', Ventas='97', Premios='56'
+  Row 1: Vendedor='GORDO MAYOR', Ventas='33', Premios='18.55'
+  Row 2: Vendedor='LUISTORRES', Ventas='150', Premios='140'
+  Row 3: Vendedor='PA QUE JUANCHO SAN JACINTO', Ventas='345', Premios='250.22'
+  Row 4: Vendedor='DULCINEA URUMACO', Ventas='2302', Premios='1713.88'
+\n--- ARCHIVO: MASTERGREEN792_WORLDDEPORTES$MM23032026-25032026.csv ---
+Leídas 20 filas.
+Primeras 15 filas:
+["Taquillas","Ventas Parley","Ventas por Derecho","Anulados","Premios"]\n["1tecnobet Usd",500,0,0,0]\n["betulio1 Usd",9500,0,0,0]\n["cruces Bs",1.15,0,0,79816]\n["cruces Usd",300,0,0,0]\n["donlucho Bs",4,0,0,0]\n["gregory Bs",5.39,0,20000,76846]\n["gregory Usd",4850,0,0,11959]\n["lalucha Bs",50000,0,0,0]\n["lalucha Usd",4100,0,0,2980]\n["misnietostecnobet Bs",3.4,0,0,0]\n["misnietostecnobet Usd",100,0,0,0]\n["mulata Usd",5500,0,0,0]\n["paquejuancho Usd",1000,0,0,0]\n["paqueluisito Bs",4.2,0,0,0]
+[Heurística 1] Encontrado en fila 0: Vendedor:0(Taquillas), Ventas:1(Ventas Parley), Premios:4(Premios)
+=> ÉXITO. Filas a procesar:
+  Row 0: Vendedor='1TECNOBET USD', Ventas='500', Premios='0'
+  Row 1: Vendedor='BETULIO1 USD', Ventas='9500', Premios='0'
+  Row 2: Vendedor='CRUCES BS', Ventas='1.15', Premios='79816'
+  Row 3: Vendedor='CRUCES USD', Ventas='300', Premios='0'
+  Row 4: Vendedor='DONLUCHO BS', Ventas='4', Premios='0'

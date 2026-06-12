@@ -1,0 +1,171 @@
+
+============================================================
+ARCHIVO: AMERICANAS $.xlsx
+============================================================
+Hojas disponibles: Hoja1
+
+--- Hoja: "Hoja1" ---
+Total filas: 19
+
+Primeras 20 filas (raw JSON):
+  [0] ["WCENTER"]
+  [1] []
+  [2] ["Nombre","Venta","Comisión","Participación","Premios","Total"]
+  [3] ["GORDO MAYOR SB.- WCENTER ( G CLOVER )",2846.6,0,264.59,2405.61,176.4]
+  [4] ["EANTUNEZ TERMINAL SB.- WCENTER ( G CLOVER )",282,0,-13.17,303.95,-8.78]
+  [5] ["MULTIDEPORTES JD SB.- WCENTER ( G CLOVER )",1157.8,0,71.93,1037.91,47.96]
+  [6] ["MAGE SB.- WCENTER (GREEN CLOVER) (STREAM)",2372.9,0,220,2006.23,146.67]
+  [7] ["LUISTORRES SB.- WCENTER (G CLOVER)",122,0,8.4,108,5.6]
+  [8] ["SANTA ANITA SB.- (STREAM) WCENTER (G CLOVER)",806.9,0,80.93,672.01,53.96]
+  [9] ["PA QUE JONATHAN.- WCENTER (G CLOVER) (STREAM)",41.3,0,18.72,10.1,12.48]
+  [10] ["EL YUKA.- WCENTER (G CLOVER)",940.1,0,113.18,751.47,75.45]
+  [11] ["$MATUCON - WCENTER (G CLOVER)",1410,0,240.72,1008.8,160.48]
+  [12] ["DULCINEA- WCENTER -(GCLOVER)",40726.1,0,4213.79,33703.11,2809.2]
+  [13] ["YEIBE LA LUCHA.- WCENTER (G CLOVER)",72.8,0,26.43,28.75,17.62]
+  [14] ["MULATA .-WCENTER (G CLOVER)",5104,0,806.37,3760.05,537.58]
+  [15] ["LLANO GRANDE-WCENTER (GCLOVER)",4092,0,-2952.18,9012.3,-1968.12]
+  [16] ["PAQJUANCHO.- WCENTER (G CLOVER)",1818.42,0,446.33,1074.54,297.55]
+  [17] []
+  [18] ["TOTAL",61792.92,0,3546.04,55882.83,2364.05]
+
+--- Búsqueda de columnas (parser AMERICANAS) ---
+  [OK] Header encontrado en fila 2: Nombre:col0="Nombre", Venta:col1="Venta", Premio:col4="Premios"
+
+Primeras 5 filas de datos:
+  Nombre="GORDO MAYOR SB.- WCENTER ( G CLOVER )", Venta=2846.6, Premio=2405.61
+    -> PARSE FALLA: no empieza con BS o $. Texto: "GORDO MAYOR SB.- WCENTER ( G C"
+  Nombre="EANTUNEZ TERMINAL SB.- WCENTER ( G CLOVER )", Venta=282, Premio=303.95
+    -> PARSE FALLA: no empieza con BS o $. Texto: "EANTUNEZ TERMINAL SB.- WCENTER"
+  Nombre="MULTIDEPORTES JD SB.- WCENTER ( G CLOVER )", Venta=1157.8, Premio=1037.91
+    -> PARSE FALLA: no empieza con BS o $. Texto: "MULTIDEPORTES JD SB.- WCENTER "
+  Nombre="MAGE SB.- WCENTER (GREEN CLOVER) (STREAM)", Venta=2372.9, Premio=2006.23
+    -> PARSE FALLA: no empieza con BS o $. Texto: "MAGE SB.- WCENTER (GREEN CLOVE"
+  Nombre="LUISTORRES SB.- WCENTER (G CLOVER)", Venta=122, Premio=108
+    -> PARSE FALLA: no empieza con BS o $. Texto: "LUISTORRES SB.- WCENTER (G CLO"
+
+============================================================
+ARCHIVO: AMERICANAS BS.xlsx
+============================================================
+Hojas disponibles: Hoja1
+
+--- Hoja: "Hoja1" ---
+Total filas: 12
+
+Primeras 20 filas (raw JSON):
+  [0] ["WCENTER"]
+  [1] []
+  [2] ["Nombre","Venta","Comisión","Participación","Premios","Total"]
+  [3] ["BS LLANO GRANDE-WCENTER (GCLOVER)",19000,0,-20400,53000,-13600]
+  [4] ["BS YEIBE LA LUCHA.- WCENTER (G CLOVER)",26600,0,5052,18180,3368]
+  [5] ["BS MATUCON - WCENTER (G CLOVER)",146000,0,41820,76300,27880]
+  [6] ["BS DULCINEA- WCENTER (GCLOVER)",257000,0,6084,246860,4056]
+  [7] ["BS AG LA REDOMA.- WCENTER (STREM)( G CLOVER )",59090,0,14964.6,34149,9976.4]
+  [8] ["BS MAGE SB.- WCENTER (GREEN CLOVER BS)",573500,0,165162,298230,110108]
+  [9] ["BS SANTA ANITA SB.- WCENTER (G CLOVER BS)",226970,0,30650.4,175886,20433.6]
+  [10] []
+  [11] ["TOTAL",1308160,0,243333,902605,162222]
+
+--- Búsqueda de columnas (parser AMERICANAS) ---
+  [OK] Header encontrado en fila 2: Nombre:col0="Nombre", Venta:col1="Venta", Premio:col4="Premios"
+
+Primeras 5 filas de datos:
+  Nombre="BS LLANO GRANDE-WCENTER (GCLOVER)", Venta=19000, Premio=53000
+    -> Moneda: BOLIVAR, Rest: "LLANO GRANDE-WCENTER (GCLOVER)"
+  Nombre="BS YEIBE LA LUCHA.- WCENTER (G CLOVER)", Venta=26600, Premio=18180
+    -> Moneda: BOLIVAR, Rest: "YEIBE LA LUCHA.- WCENTER (G CLOVER)"
+  Nombre="BS MATUCON - WCENTER (G CLOVER)", Venta=146000, Premio=76300
+    -> Moneda: BOLIVAR, Rest: "MATUCON - WCENTER (G CLOVER)"
+  Nombre="BS DULCINEA- WCENTER (GCLOVER)", Venta=257000, Premio=246860
+    -> Moneda: BOLIVAR, Rest: "DULCINEA- WCENTER (GCLOVER)"
+  Nombre="BS AG LA REDOMA.- WCENTER (STREM)( G CLOVER )", Venta=59090, Premio=34149
+    -> Moneda: BOLIVAR, Rest: "AG LA REDOMA.- WCENTER (STREM)( G CLOVER"
+
+============================================================
+ARCHIVO: Report BOLIVARES.xls
+============================================================
+Hojas disponibles: Page 1
+
+--- Hoja: "Page 1" ---
+Total filas: 1048
+
+Primeras 20 filas (raw JSON):
+  [0] []
+  [1] []
+  [2] [null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Administrativo"]
+  [3] []
+  [4] [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Reporte de Centros Hipicos"]
+  [5] [null,"Tipo Jugada:",null,null,null,"TODAS"]
+  [6] []
+  [7] [null,"Desde:",null,"18/05/2026",null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Fecha:",null,null,"18/05/2026"]
+  [8] [null,"Hasta:",null,"18/05/2026",null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Hora:",null,null,"05:29:53 pm"]
+  [9] []
+  [10] [null,"Nombre",null,null,null,null,null,null,null,"Venta",null,null,"Comisión",null,null,null,null,"Participación",null,null,null,"Premios",null,null,null,"Total"]
+  [11] [null,"BS EL MUÑECO - GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [12] [null,"BSCENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [13] [null,"BS GAETANO SB - GAETANO (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [14] [null,"BS MONEY MAKERS 2.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [15] [null,"BS BUENA VISTA1 LOS PUERTOS.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [16] [null,"BS TASCA Y RESTAURANT MIGUELANDIA - GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [17] [null,"BSSPELORZI - DELICIAS (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [18] [null,"BSABASTO Y LICORES ARÉVALO.- MAYORLYN (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [19] [null,"BSINVERSIONES RP - MAYORLYN (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+
+--- Búsqueda de columnas (parser AMERICANAS) ---
+  [OK] Header encontrado en fila 10: Nombre:col1="Nombre", Venta:col9="Venta", Premio:col21="Premios"
+
+Primeras 5 filas de datos:
+  Nombre="BS EL MUÑECO - GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: BOLIVAR, Rest: "EL MUÑECO - GRANDE (W DEPORTES)"
+  Nombre="BSCENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: BOLIVAR, Rest: "CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGAD"
+  Nombre="BS GAETANO SB - GAETANO (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: BOLIVAR, Rest: "GAETANO SB - GAETANO (W DEPORTES)"
+  Nombre="BS MONEY MAKERS 2.- GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: BOLIVAR, Rest: "MONEY MAKERS 2.- GRANDE (W DEPORTES)"
+  Nombre="BS BUENA VISTA1 LOS PUERTOS.- GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: BOLIVAR, Rest: "BUENA VISTA1 LOS PUERTOS.- GRANDE (W DEP"
+
+============================================================
+ARCHIVO: Report DOLARES.xls
+============================================================
+Hojas disponibles: Page 1
+
+--- Hoja: "Page 1" ---
+Total filas: 1809
+
+Primeras 20 filas (raw JSON):
+  [0] []
+  [1] []
+  [2] [null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Administrativo"]
+  [3] []
+  [4] [null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Reporte de Centros Hipicos"]
+  [5] [null,"Tipo Jugada:",null,null,null,"TODAS"]
+  [6] []
+  [7] [null,"Desde:",null,"18/05/2026",null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Fecha:",null,null,"18/05/2026"]
+  [8] [null,"Hasta:",null,"18/05/2026",null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,"Hora:",null,null,"05:29:26 pm"]
+  [9] []
+  [10] [null,"Nombre",null,null,null,null,null,null,null,"Venta",null,null,"Comisión",null,null,null,null,"Participación",null,null,null,"Premios",null,null,null,"Total"]
+  [11] [null,"$ EL MUÑECO - GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [12] [null,"$CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [13] [null,"$GAETANO SB - GAETANO (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [14] [null,"$MONEY MAKERS 2.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [15] [null,"$TASCA Y RESTAURANT MIGUELANDIA - GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [16] [null,"$BUENA VISTA1 LOS PUERTOS.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [17] [null,"$SPELORZI - DELICIAS (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [18] [null,"$ABASTO Y LICORES ARÉVALO.- MAYORLYN (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+  [19] [null,"$ARES POLL.- GRANDE (W DEPORTES)",null,null,null,null,null,null,0,null,null,null,0,null,null,null,null,0,null,null,null,0,null,null,null,0]
+
+--- Búsqueda de columnas (parser AMERICANAS) ---
+  [OK] Header encontrado en fila 10: Nombre:col1="Nombre", Venta:col9="Venta", Premio:col21="Premios"
+
+Primeras 5 filas de datos:
+  Nombre="$ EL MUÑECO - GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: DOLAR, Rest: "EL MUÑECO - GRANDE (W DEPORTES)"
+  Nombre="$CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: DOLAR, Rest: "CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGAD"
+  Nombre="$GAETANO SB - GAETANO (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: DOLAR, Rest: "GAETANO SB - GAETANO (W DEPORTES)"
+  Nombre="$MONEY MAKERS 2.- GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: DOLAR, Rest: "MONEY MAKERS 2.- GRANDE (W DEPORTES)"
+  Nombre="$TASCA Y RESTAURANT MIGUELANDIA - GRANDE (W DEPORTES)", Venta=undefined, Premio=0
+    -> Moneda: DOLAR, Rest: "TASCA Y RESTAURANT MIGUELANDIA - GRANDE "

@@ -1,0 +1,56 @@
+
+────────────────────────────────────────────────────────────
+ARCHIVO: Report $.xls
+  ✓ Detectado: moneda=DOLAR
+  Header en fila 10, salesCol=8, prizesCol=21
+  Total filas válidas con venta: 87
+  Primeros 5 resultados:
+    [DOLAR] GAETANO SB                               | Venta=348 | Premio=226.48
+    [DOLAR] ABASTO Y LICORES ARÉVALO                 | Venta=904.9 | Premio=810.22
+    [DOLAR] TASCA Y CENTRO HIPICO 7 PUERTAS- GRANDE  | Venta=884 | Premio=592.89
+    [DOLAR] A QUE PUA                                | Venta=1829.1 | Premio=1366.3
+    [DOLAR] MODELO SPORTBOOK                         | Venta=30 | Premio=36.9
+
+────────────────────────────────────────────────────────────
+ARCHIVO: Report BOLIVARES.xls
+  ✓ Detectado: moneda=BOLIVAR
+  Header en fila 10, salesCol=8, prizesCol=21
+  Total filas válidas con venta: 30
+  Primeros 5 resultados:
+    [BOLIVAR] CEPU                                     | Venta=23100 | Premio=9660
+    [BOLIVAR] A QUE PROSPERO 2                         | Venta=700 | Premio=0
+    [BOLIVAR] PA Q' YOYO                               | Venta=0 | Premio=3528
+    [BOLIVAR] LA FAVORITA SB                           | Venta=13090 | Premio=5334
+    [BOLIVAR] 5 BOCAS                                  | Venta=11214 | Premio=5153.54
+
+────────────────────────────────────────────────────────────
+ARCHIVO: Report DOLARES.xls
+  ✓ Detectado: moneda=DOLAR
+  Header en fila 10, salesCol=8, prizesCol=21
+  Total filas válidas con venta: 12
+  Primeros 5 resultados:
+    [DOLAR] TASCA Y CENTRO HIPICO 7 PUERTAS- GRANDE  | Venta=34 | Premio=0
+    [DOLAR] SPORTS BOOK LA CASA DEL APOSTADOR        | Venta=4 | Premio=0
+    [DOLAR] PALMAS                                   | Venta=7 | Premio=0
+    [DOLAR] HERMANOS SALAS SB                        | Venta=0 | Premio=54
+    [DOLAR] PAGO YA                                  | Venta=5 | Premio=0
+
+────────────────────────────────────────────────────────────
+ARCHIVO: AMERICANAS $.xlsx
+  ✓ Detectado: moneda=DOLAR
+  Header en fila 2, salesCol=1, prizesCol=4
+  Total filas válidas con venta: 1
+  Primeros 5 resultados:
+    [DOLAR] MATUCON                                  | Venta=1410 | Premio=1008.8
+
+────────────────────────────────────────────────────────────
+ARCHIVO: AMERICANAS BS.xlsx
+  ✓ Detectado: moneda=BOLIVAR
+  Header en fila 2, salesCol=1, prizesCol=4
+  Total filas válidas con venta: 7
+  Primeros 5 resultados:
+    [BOLIVAR] LLANO GRANDE-WCENTER                     | Venta=19000 | Premio=53000
+    [BOLIVAR] YEIBE LA LUCHA                           | Venta=26600 | Premio=18180
+    [BOLIVAR] MATUCON                                  | Venta=146000 | Premio=76300
+    [BOLIVAR] DULCINEA- WCENTER                        | Venta=257000 | Premio=246860
+    [BOLIVAR] AG LA REDOMA                             | Venta=59090 | Premio=34149

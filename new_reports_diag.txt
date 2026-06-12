@@ -1,0 +1,111 @@
+
+=================================================================
+ARCHIVO: "Report $.xls"  (771584 bytes)
+=================================================================
+Detección por nombre de archivo: ✗ NO DETECTADO
+  → fileNameUpper = "REPORT $.XLS"
+  → Contiene REPORT: true
+  → Contiene DOLAR:  false
+  → Contiene BOLIVAR:false
+  → Contiene BS:     false
+  → Contiene $:      true
+Hojas: Page 1
+Total filas: 1809
+
+Primeras 15 filas (primeras 6 celdas no-null):
+  [2] ["Administrativo"]
+  [4] ["Reporte de Centros Hipicos"]
+  [5] ["Tipo Jugada:","TODAS"]
+  [7] ["Desde:","11/05/2026","Fecha:","20/05/2026"]
+  [8] ["Hasta:","17/05/2026","Hora:","07:37:49 p.m."]
+  [10] ["Nombre","Venta","Comisión","Participación","Premios","Total"]
+  [11] ["$ EL MUÑECO - GRANDE (W DEPORTES)",0,0,0,0,0]
+  [12] ["$CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)",0,0,0,0,0]
+  [13] ["$GAETANO SB - GAETANO (W DEPORTES)",348,0,85.06,226.48,36.46]
+  [14] ["$MONEY MAKERS 2.- GRANDE (W DEPORTES)",0,0,0,0,0]
+
+Búsqueda de header (Nombre + Venta):
+  ✓ Header en fila 10: Nombre=col[1], Venta=col[9]
+    Fila completa: [null,"Nombre",null,null,null,null,null,null,null,"Venta",null,null,"Comisión",null,null,null,null,"Participación",null,null,null,"Premios",null,null,null,"Total"]
+  Primera fila de datos (row 11):
+    Nombre: "$ EL MUÑECO - GRANDE (W DEPORTES)"
+    cell[vIdx=9] = undefined
+    cell[vIdx-1=8] = 0
+    Columnas numéricas: col[8]=0, col[12]=0, col[17]=0, col[21]=0, col[25]=0
+
+Buscando filas con ventas > 0 (primeras 5):
+  row[13] nombre="$GAETANO SB - GAETANO (W DEPORTES)" nums=[col[8]=348, col[17]=85.06, col[21]=226.48, col[25]=36.46]
+  row[18] nombre="$ABASTO Y LICORES ARÉVALO.- MAYORLYN (W DEPOR" nums=[col[8]=904.9, col[17]=66.28, col[21]=810.22, col[25]=28.4]
+  row[23] nombre="$TASCA Y CENTRO HIPICO 7 PUERTAS- GRANDE (W D" nums=[col[8]=884, col[17]=203.78, col[21]=592.89, col[25]=87.33]
+  row[24] nombre="$A QUE PUA - YANKEE- (W DEPORTES)" nums=[col[8]=1829.1, col[17]=323.96, col[21]=1366.3, col[25]=138.84]
+  row[27] nombre="$MODELO SPORTBOOK - YANKEE (W DEPORTES)" nums=[col[8]=30, col[21]=36.9]
+
+=================================================================
+ARCHIVO: "Report BOLIVARES.xls"  (451072 bytes)
+=================================================================
+Detección por nombre de archivo: ✓ AMERICANAS/REPORT
+Hojas: Page 1
+Total filas: 1048
+
+Primeras 15 filas (primeras 6 celdas no-null):
+  [2] ["Administrativo"]
+  [4] ["Reporte de Centros Hipicos"]
+  [5] ["Tipo Jugada:","TODAS"]
+  [7] ["Desde:","18/05/2026","Fecha:","18/05/2026"]
+  [8] ["Hasta:","18/05/2026","Hora:","05:29:53 pm"]
+  [10] ["Nombre","Venta","Comisión","Participación","Premios","Total"]
+  [11] ["BS EL MUÑECO - GRANDE (W DEPORTES)",0,0,0,0,0]
+  [12] ["BSCENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)",0,0,0,0,0]
+  [13] ["BS GAETANO SB - GAETANO (W DEPORTES)",0,0,0,0,0]
+  [14] ["BS MONEY MAKERS 2.- GRANDE (W DEPORTES)",0,0,0,0,0]
+
+Búsqueda de header (Nombre + Venta):
+  ✓ Header en fila 10: Nombre=col[1], Venta=col[9]
+    Fila completa: [null,"Nombre",null,null,null,null,null,null,null,"Venta",null,null,"Comisión",null,null,null,null,"Participación",null,null,null,"Premios",null,null,null,"Total"]
+  Primera fila de datos (row 11):
+    Nombre: "BS EL MUÑECO - GRANDE (W DEPORTES)"
+    cell[vIdx=9] = undefined
+    cell[vIdx-1=8] = 0
+    Columnas numéricas: col[8]=0, col[12]=0, col[17]=0, col[21]=0, col[25]=0
+
+Buscando filas con ventas > 0 (primeras 5):
+  row[153] nombre="BSCEPU.- LA PRIMAVERA (W DEPORTES)" nums=[col[8]=23100, col[17]=9408, col[21]=9660, col[25]=4032]
+  row[165] nombre="BS A QUE PROSPERO 2.- DELICIAS (W DEPORTES) (" nums=[col[8]=700, col[17]=490, col[25]=210]
+  row[244] nombre="BS PA Q' YOYO - JORMAN RONDON (W DEPORTES)" nums=[col[21]=3528]
+  row[301] nombre="BSLA FAVORITA SB.- FAVORITA (W DEPORTES)" nums=[col[8]=13090, col[17]=5429.2, col[21]=5334, col[25]=2326.8]
+  row[317] nombre="BS 5 BOCAS.- SIERRA (W DEPORTES)" nums=[col[8]=11214, col[17]=4242.32, col[21]=5153.54, col[25]=1818.14]
+
+=================================================================
+ARCHIVO: "Report DOLARES.xls"  (771584 bytes)
+=================================================================
+Detección por nombre de archivo: ✓ AMERICANAS/REPORT
+Hojas: Page 1
+Total filas: 1809
+
+Primeras 15 filas (primeras 6 celdas no-null):
+  [2] ["Administrativo"]
+  [4] ["Reporte de Centros Hipicos"]
+  [5] ["Tipo Jugada:","TODAS"]
+  [7] ["Desde:","18/05/2026","Fecha:","18/05/2026"]
+  [8] ["Hasta:","18/05/2026","Hora:","05:29:26 pm"]
+  [10] ["Nombre","Venta","Comisión","Participación","Premios","Total"]
+  [11] ["$ EL MUÑECO - GRANDE (W DEPORTES)",0,0,0,0,0]
+  [12] ["$CENTRO SOCIAL Y DEPORTIVO ISMALDA DELGADO.- GRANDE (W DEPORTES)",0,0,0,0,0]
+  [13] ["$GAETANO SB - GAETANO (W DEPORTES)",0,0,0,0,0]
+  [14] ["$MONEY MAKERS 2.- GRANDE (W DEPORTES)",0,0,0,0,0]
+
+Búsqueda de header (Nombre + Venta):
+  ✓ Header en fila 10: Nombre=col[1], Venta=col[9]
+    Fila completa: [null,"Nombre",null,null,null,null,null,null,null,"Venta",null,null,"Comisión",null,null,null,null,"Participación",null,null,null,"Premios",null,null,null,"Total"]
+  Primera fila de datos (row 11):
+    Nombre: "$ EL MUÑECO - GRANDE (W DEPORTES)"
+    cell[vIdx=9] = undefined
+    cell[vIdx-1=8] = 0
+    Columnas numéricas: col[8]=0, col[12]=0, col[17]=0, col[21]=0, col[25]=0
+
+Buscando filas con ventas > 0 (primeras 5):
+  row[23] nombre="$TASCA Y CENTRO HIPICO 7 PUERTAS- GRANDE (W D" nums=[col[8]=34, col[17]=23.8, col[25]=10.2]
+  row[73] nombre="$SPORTS BOOK LA CASA DEL APOSTADOR - GRANDE (" nums=[col[8]=4, col[17]=2.8, col[25]=1.2]
+  row[159] nombre="$PALMAS - ANDREA RODRIGUEZ (W DEPORTES)" nums=[col[8]=7, col[17]=4.9, col[25]=2.1]
+  row[198] nombre="$HERMANOS SALAS SB.- EVILCHEZ (W DEPORTES)" nums=[col[21]=54]
+  row[267] nombre="$PAGO YA - PAGO YA (W DEPORTES)(STREAM)" nums=[col[8]=5, col[17]=3.5, col[25]=1.5]
