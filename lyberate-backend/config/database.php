@@ -4,9 +4,9 @@
  */
 
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_NAME', getenv('DB_NAME') ?: 'lyberate_db');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
+define('DB_NAME', getenv('DB_NAME') ?: 'qluilsmq_wd');
+define('DB_USER', getenv('DB_USER') ?: 'qluilsmq_jen');
+define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : 'Ai648.va');
 define('DB_CHARSET', 'utf8mb4');
 
 // JWT Secret Key - Carga desde variable de entorno o usa fallback en desarrollo
