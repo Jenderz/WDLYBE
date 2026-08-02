@@ -428,17 +428,13 @@ export const initLocalStore = () => {
 
 // ─── Auth / Session ─────────────────────────────────────────────────────────
 
-export async function loginUser(email: string, password: string): Promise<AppUser | null> {
-    try {
-        const res = await apiRequest<{ token: string; user: any }>('/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-        });
-        setToken(res.token);
-        return mapUser(res.user);
-    } catch {
-        return null;
-    }
+export async function loginUser(email: string, password: string): Promise<AppUser> {
+    const res = await apiRequest<{ token: string; user: any }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
+    setToken(res.token);
+    return mapUser(res.user);
 }
 
 export async function loadSession(): Promise<AppUser | null> {

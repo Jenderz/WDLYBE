@@ -44,9 +44,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         restoreSession();
     }, []);
 
-    const login = async (email: string, password: string): Promise<AppUser | null> => {
+    const login = async (email: string, password: string): Promise<AppUser> => {
         const found = await loginUser(email, password);
-        if (!found) return null;
         setUser(found);
         return found;
     };
