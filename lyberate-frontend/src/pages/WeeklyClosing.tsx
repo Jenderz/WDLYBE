@@ -173,31 +173,49 @@ export const WeeklyClosing = () => {
     const handlePreviewTicket = (row: SellerRow) => {
         setGeneratingFor(row.sellerId + row.currency);
         setPrintingRow(row);
-
-        setTimeout(async () => {
-            if (receiptRef.current) {
-                try {
-                    const canvas = await html2canvas(receiptRef.current, { backgroundColor: '#ffffff', scale: 2 });
-                    const image = canvas.toDataURL("image/png", 1.0);
-
-                    // Show in preview modal instead of auto-download
-                    setGeneratedImage({ url: image, sellerName: row.sellerName, currency: row.currency });
-                } catch (e) {
-                    console.error("Error generating receipt image", e);
-                }
-            }
-
-            setPrintingRow(null);
-            setGeneratingFor(null);
-        }, 800);
+        // La captura se dispara desde el useEffect de abajo cuando el DOM esté listo
     };
+
+    // Disparar html2canvas justo después de que React pinte printingRow en el DOM
+    useEffect(() => {
+        if (!printingRow) return;
+
+        // Dos frames de animación garantizan que el DOM ya fue pintado por el browser
+        const raf1 = requestAnimationFrame(() => {
+            const raf2 = requestAnimationFrame(async () => {
+                if (!receiptRef.current) {
+                    setPrintingRow(null);
+                    setGeneratingFor(null);
+                    return;
+                }
+                try {
+                    const canvas = await html2canvas(receiptRef.current, {
+                        backgroundColor: '#ffffff',
+                        scale: 2,
+                        useCORS: true,   // Permite cargar el logo desde dominio externo
+                        logging: false,  // Silencia logs internos innecesarios
+                    });
+                    const image = canvas.toDataURL('image/png', 1.0);
+                    setGeneratedImage({ url: image, sellerName: printingRow.sellerName, currency: printingRow.currency });
+                } catch (e) {
+                    console.error('Error generating receipt image', e);
+                } finally {
+                    setPrintingRow(null);
+                    setGeneratingFor(null);
+                }
+            });
+            return () => cancelAnimationFrame(raf2);
+        });
+        return () => cancelAnimationFrame(raf1);
+    }, [printingRow]);
 
     // ── Generar ticket para un vendedor e invocar preview ─────────────────────
     const handleGenerateTicket = async (row: SellerRow) => {
         const selectedPeriod = weeklyPeriods.find(p => p.id === selectedPeriodId);
 
-        // 1. Guardar Snapshot Histórico
-        await upsertWeeklyTicket({
+        // 1. Guardar Snapshot + Refrescar datos EN PARALELO con la generación del recibo
+        //    (no bloqueamos la UI esperando el refresh completo)
+        upsertWeeklyTicket({
             sellerId: row.sellerId,
             sellerName: row.sellerName,
             weekId: selectedPeriodId,
@@ -213,12 +231,13 @@ export const WeeklyClosing = () => {
             balance: row.balance,
             currency: row.currency,
             status: 'settled',
-        });
+        }).then(() => {
+            // Actualizar datos en segundo plano sin bloquear la pantalla
+            refreshAll();
+            showToast(`✅ Recibo guardado: ${row.sellerName}`);
+        }).catch(err => console.error('Error guardando snapshot:', err));
 
-        await refreshAll();
-        showToast(`✅ Recibo guardado: ${row.sellerName}`);
-
-        // 2. Imprimir Ticket Visual
+        // 2. Iniciar generación visual del ticket inmediatamente
         handlePreviewTicket(row);
     };
 

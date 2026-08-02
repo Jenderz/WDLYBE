@@ -9,8 +9,8 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_CHARSET', 'utf8mb4');
 
-// JWT Secret Key - CHANGE THIS IN PRODUCTION
-define('JWT_SECRET', 'lyberate_jwt_secret_key_change_in_production_2026');
+// JWT Secret Key - Carga desde variable de entorno o usa fallback en desarrollo
+define('JWT_SECRET', getenv('JWT_SECRET') ?: 'lyberate_jwt_secret_key_change_in_production_2026');
 define('JWT_EXPIRY', 28800); // 8 hours in seconds
 
 // Upload config

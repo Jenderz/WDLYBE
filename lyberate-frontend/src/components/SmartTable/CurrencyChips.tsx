@@ -22,6 +22,7 @@ const CURRENCY_COLORS: Record<string, { active: string; idle: string }> = {
     USD:             { active: 'bg-green-500 text-white border-green-500 shadow-green-500/20', idle: 'text-green-600 dark:text-green-400 border-green-500/20 bg-green-500/8 hover:bg-green-500/15' },
     DOLAR:           { active: 'bg-green-500 text-white border-green-500 shadow-green-500/20', idle: 'text-green-600 dark:text-green-400 border-green-500/20 bg-green-500/8 hover:bg-green-500/15' },
     'Bs.':           { active: 'bg-orange-500 text-white border-orange-500 shadow-orange-500/20', idle: 'text-orange-600 dark:text-orange-400 border-orange-500/20 bg-orange-500/8 hover:bg-orange-500/15' },
+    'BOLIVARES VENEZOLANOS': { active: 'bg-orange-500 text-white border-orange-500 shadow-orange-500/20', idle: 'text-orange-600 dark:text-orange-400 border-orange-500/20 bg-orange-500/8 hover:bg-orange-500/15' },
     'BOLIVAR':       { active: 'bg-orange-500 text-white border-orange-500 shadow-orange-500/20', idle: 'text-orange-600 dark:text-orange-400 border-orange-500/20 bg-orange-500/8 hover:bg-orange-500/15' },
     COP:             { active: 'bg-yellow-500 text-white border-yellow-500 shadow-yellow-500/20', idle: 'text-yellow-600 dark:text-yellow-400 border-yellow-500/20 bg-yellow-500/8 hover:bg-yellow-500/15' },
     'PESO COLOMBIANA': { active: 'bg-yellow-500 text-white border-yellow-500 shadow-yellow-500/20', idle: 'text-yellow-600 dark:text-yellow-400 border-yellow-500/20 bg-yellow-500/8 hover:bg-yellow-500/15' },

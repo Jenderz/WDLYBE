@@ -1,6 +1,13 @@
 <?php
 /**
  * Dashboard Controller - KPIs and statistics
+ *
+ * Retorna métricas financieras agrupadas por moneda, incluyendo:
+ *  - Ventas, premios, comisiones, utilidad banca (desde `sales`)
+ *  - Recaudado y pendiente (desde `payments`)
+ *  - Gastos operativos por moneda (desde `expenses`)
+ *  - Posturas pendientes por moneda (desde `posturas`)
+ *  - Utilidad Neta Real = Utilidad Banca - Gastos - Posturas Pendientes
  */
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../middleware/auth.php';
@@ -14,7 +21,7 @@ function handleDashboard(string $method, ?string $action = null) {
 
     $weekId = $_GET['week_id'] ?? null;
 
-    // Sales stats
+    // ── Sales stats ───────────────────────────────────────────────────────
     $salesWhere = $weekId ? "WHERE week_id = ?" : "";
     $salesParams = $weekId ? [$weekId] : [];
 
@@ -31,7 +38,7 @@ function handleDashboard(string $method, ?string $action = null) {
     $stmt->execute($salesParams);
     $salesStats = $stmt->fetch();
 
-    // Payments stats
+    // ── Payments stats ────────────────────────────────────────────────────
     $payWhere = $weekId ? "WHERE week_id = ?" : "";
     $payParams = $weekId ? [$weekId] : [];
 
@@ -44,19 +51,80 @@ function handleDashboard(string $method, ?string $action = null) {
     $stmt->execute($payParams);
     $payStats = $stmt->fetch();
 
-    // Expenses stats (current month if no weekId)
-    $expWhere = "WHERE expense_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)";
-    $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) as total_expenses, COUNT(*) as expense_count FROM expenses $expWhere");
+    // ── Expenses stats — agrupadas POR MONEDA (últimos 30 días) ──────────
+    $stmt = $db->prepare(
+        "SELECT 
+            currency,
+            COALESCE(SUM(amount), 0) as total,
+            COUNT(*) as count
+         FROM expenses 
+         WHERE expense_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+         GROUP BY currency"
+    );
     $stmt->execute();
-    $expStats = $stmt->fetch();
+    $expenseRows = $stmt->fetchAll();
 
-    // Active sellers count
+    // Normalizar a { usd, bs, cop }
+    $expensesByCurrency = ['usd' => 0.0, 'bs' => 0.0, 'cop' => 0.0];
+    foreach ($expenseRows as $row) {
+        $key = _currencyKey($row['currency']);
+        if ($key) $expensesByCurrency[$key] += (float)$row['total'];
+    }
+
+    // Totales globales de gastos (para la tarjeta de resumen general)
+    $expStats = [
+        'total_expenses' => array_sum($expensesByCurrency),
+        'expense_count'  => array_sum(array_column($expenseRows, 'count')),
+        'by_currency'    => $expensesByCurrency,
+    ];
+
+    // ── Posturas stats — pendientes POR MONEDA ────────────────────────────
+    $stmt = $db->prepare(
+        "SELECT 
+            currency,
+            status,
+            COALESCE(SUM(amount), 0) as total,
+            COUNT(*) as count
+         FROM posturas 
+         GROUP BY currency, status"
+    );
+    $stmt->execute();
+    $posturaRows = $stmt->fetchAll();
+
+    $posturasByCurrency = [
+        'usd' => ['pendiente' => 0.0, 'devuelta' => 0.0, 'cancelada' => 0.0, 'count_pending' => 0],
+        'bs'  => ['pendiente' => 0.0, 'devuelta' => 0.0, 'cancelada' => 0.0, 'count_pending' => 0],
+        'cop' => ['pendiente' => 0.0, 'devuelta' => 0.0, 'cancelada' => 0.0, 'count_pending' => 0],
+    ];
+    foreach ($posturaRows as $row) {
+        $key = _currencyKey($row['currency']);
+        if ($key && isset($posturasByCurrency[$key][$row['status']])) {
+            $posturasByCurrency[$key][$row['status']] += (float)$row['total'];
+            if ($row['status'] === 'pendiente') {
+                $posturasByCurrency[$key]['count_pending'] += (int)$row['count'];
+            }
+        }
+    }
+
+    // ── Active sellers count ───────────────────────────────────────────────
     $sellerCount = $db->query("SELECT COUNT(*) FROM sellers")->fetchColumn();
 
     jsonSuccess([
-        'sales' => $salesStats,
-        'payments' => $payStats,
-        'expenses' => $expStats,
-        'sellerCount' => (int)$sellerCount,
+        'sales'              => $salesStats,
+        'payments'           => $payStats,
+        'expenses'           => $expStats,
+        'posturas'           => $posturasByCurrency,
+        'sellerCount'        => (int)$sellerCount,
     ]);
+}
+
+/**
+ * Normaliza un string de moneda al key interno (usd / bs / cop).
+ */
+function _currencyKey(string $currency): ?string {
+    $lower = strtolower(trim($currency));
+    if (str_contains($lower, 'dolar') || str_contains($lower, 'usd') || $lower === 'usd' || $lower === '$') return 'usd';
+    if (str_contains($lower, 'peso') || str_contains($lower, 'cop') || $lower === 'cop') return 'cop';
+    if (str_contains($lower, 'bolivar') || str_contains($lower, 'bs') || str_contains($lower, 'ves')) return 'bs';
+    return null;
 }

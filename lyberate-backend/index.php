@@ -135,6 +135,23 @@ try {
             handleExpenses($method, $action);
             break;
 
+        case 'posturas':
+            require_once __DIR__ . '/controllers/PosturasController.php';
+            // /posturas                   → list / create
+            // /posturas/summary           → resumen por moneda (GET)
+            // /posturas/{id}/return       → marcar como devuelta (PUT)
+            // /posturas/{id}/cancel       → cancelar postura (PUT)
+            // /posturas/{id}              → eliminar (DELETE)
+            if ($action === 'summary') {
+                handlePosturas($method, null, 'summary');
+            } elseif (isset($segments[2]) && in_array($segments[2], ['return', 'cancel'])) {
+                // /posturas/{id}/{action}
+                handlePosturas($method, $action, $segments[2]);
+            } else {
+                handlePosturas($method, $action, null);
+            }
+            break;
+
         case 'settings':
             require_once __DIR__ . '/controllers/SettingsController.php';
             // /settings/{resource}/{id}
@@ -159,7 +176,7 @@ try {
     }
 } catch (PDOException $e) {
     error_log("Database error: " . $e->getMessage());
-    jsonError('Error de base de datos: ' . $e->getMessage(), 500);
+    jsonError('Error interno de base de datos', 500);
 } catch (Exception $e) {
     error_log("Server error: " . $e->getMessage());
     jsonError('Error interno del servidor', 500);

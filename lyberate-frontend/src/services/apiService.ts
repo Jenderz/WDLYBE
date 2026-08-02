@@ -143,6 +143,31 @@ export interface Expense {
     createdAt: string;
 }
 
+export type PosturaStatus = 'pendiente' | 'devuelta' | 'cancelada';
+export type PosturaMethod = 'Efectivo' | 'Transferencia' | 'Zelle' | 'Pago Móvil' | 'Otro';
+export interface Postura {
+    id: string | number;
+    date: string;           // postura_date
+    concept: string;
+    amount: number;
+    currency: string;
+    method: PosturaMethod;
+    bank: string;
+    responsible: string;
+    status: PosturaStatus;
+    returnedDate: string | null;
+    returnNote: string | null;
+    weekId: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PosturaSummary {
+    usd: { pendiente: number; devuelta: number; cancelada: number; countPending: number };
+    bs:  { pendiente: number; devuelta: number; cancelada: number; countPending: number };
+    cop: { pendiente: number; devuelta: number; cancelada: number; countPending: number };
+}
+
 // ─── HTTP Helpers ────────────────────────────────────────────────────────────
 
 function getToken(): string | null {
@@ -184,6 +209,12 @@ async function apiRequest<T = any>(
 
     const json = await res.json();
     if (!res.ok) {
+        if (res.status === 401) {
+            clearToken();
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
+        }
         throw new Error(json.error || `Error ${res.status}`);
     }
     return json.data !== undefined ? json.data : json;
@@ -323,6 +354,25 @@ function mapExpense(e: any): Expense {
         amount: Number(e.amount),
         currency: e.currency ?? '',
         createdAt: e.created_at ?? e.createdAt ?? '',
+    };
+}
+
+function mapPostura(p: any): Postura {
+    return {
+        id: p.id,
+        date: p.postura_date ?? p.date ?? '',
+        concept: p.concept ?? '',
+        amount: Number(p.amount),
+        currency: p.currency ?? '',
+        method: p.method ?? 'Efectivo',
+        bank: p.bank ?? 'N/A',
+        responsible: p.responsible ?? '',
+        status: p.status ?? 'pendiente',
+        returnedDate: p.returned_date ?? p.returnedDate ?? null,
+        returnNote: p.return_note ?? p.returnNote ?? null,
+        weekId: p.week_id ?? p.weekId ?? null,
+        createdAt: p.created_at ?? p.createdAt ?? '',
+        updatedAt: p.updated_at ?? p.updatedAt ?? '',
     };
 }
 
@@ -782,6 +832,94 @@ export async function addExpense(expense: Omit<Expense, 'id' | 'createdAt'>): Pr
 
 export async function deleteExpense(expenseId: string | number): Promise<void> {
     await apiRequest(`/expenses/${expenseId}`, { method: 'DELETE' });
+}
+
+// ─── Postura Helpers ────────────────────────────────────────────────────────
+
+export async function getPosturas(filters?: {
+    status?: PosturaStatus;
+    currency?: string;
+    date_from?: string;
+    date_to?: string;
+    week_id?: string;
+}): Promise<Postura[]> {
+    const qs = new URLSearchParams();
+    if (filters?.status)    qs.set('status', filters.status);
+    if (filters?.currency)  qs.set('currency', filters.currency);
+    if (filters?.date_from) qs.set('date_from', filters.date_from);
+    if (filters?.date_to)   qs.set('date_to', filters.date_to);
+    if (filters?.week_id)   qs.set('week_id', filters.week_id);
+    const data = await apiRequest(`/posturas${qs.toString() ? '?' + qs.toString() : ''}`);
+    return (data as any[]).map(mapPostura);
+}
+
+export async function addPostura(postura: {
+    postura_date: string;
+    concept: string;
+    amount: number;
+    currency: string;
+    method: PosturaMethod;
+    bank?: string;
+    responsible?: string;
+    week_id?: string;
+}): Promise<Postura> {
+    const data = await apiRequest('/posturas', {
+        method: 'POST',
+        body: JSON.stringify(postura),
+    });
+    return mapPostura(data);
+}
+
+export async function returnPostura(
+    posturaId: string | number,
+    returnedDate: string,
+    returnNote?: string
+): Promise<Postura> {
+    const data = await apiRequest(`/posturas/${posturaId}/return`, {
+        method: 'PUT',
+        body: JSON.stringify({ returned_date: returnedDate, return_note: returnNote ?? null }),
+    });
+    return mapPostura(data);
+}
+
+export async function cancelPostura(
+    posturaId: string | number,
+    note?: string
+): Promise<Postura> {
+    const data = await apiRequest(`/posturas/${posturaId}/cancel`, {
+        method: 'PUT',
+        body: JSON.stringify({ return_note: note ?? null }),
+    });
+    return mapPostura(data);
+}
+
+export async function deletePostura(posturaId: string | number): Promise<void> {
+    await apiRequest(`/posturas/${posturaId}`, { method: 'DELETE' });
+}
+
+export async function getPosturaSummary(): Promise<PosturaSummary> {
+    const rows = await apiRequest('/posturas/summary') as any[];
+    const empty = () => ({ pendiente: 0, devuelta: 0, cancelada: 0, countPending: 0 });
+    const result: PosturaSummary = { usd: empty(), bs: empty(), cop: empty() };
+
+    const resolveKey = (currency: string): keyof PosturaSummary | null => {
+        const lower = currency.toLowerCase();
+        if (lower.includes('dolar') || lower.includes('usd') || lower === '$') return 'usd';
+        if (lower.includes('peso') || lower.includes('cop')) return 'cop';
+        if (lower.includes('bolivar') || lower.includes('bs') || lower.includes('ves')) return 'bs';
+        return null;
+    };
+
+    for (const row of rows) {
+        const key = resolveKey(row.currency ?? '');
+        if (!key) continue;
+        const status = row.status as PosturaStatus;
+        if (status in result[key]) {
+            (result[key] as any)[status] += Number(row.total ?? 0);
+            if (status === 'pendiente') result[key].countPending += Number(row.count ?? 0);
+        }
+    }
+    return result;
 }
 
 // ─── System Preferences ────────────────────────────────────────────────────

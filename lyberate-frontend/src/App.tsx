@@ -10,6 +10,7 @@ import { Transactions } from './pages/Transactions';
 import { Sellers } from './pages/Sellers';
 import { Agencies } from './pages/Agencies';
 import { Expenses } from './pages/Expenses';
+import { Posturas } from './pages/Posturas';
 import { Login } from './pages/Login';
 import { VendorPortal } from './pages/VendorPortal';
 import { WeeklyClosing } from './pages/WeeklyClosing';
@@ -120,6 +121,7 @@ const AppContent = () => {
                     <Route path="collections" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor', 'Banca']}><Collections /></ProtectedRoute>} />
                     <Route path="transactions" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor', 'Banca']}><Transactions /></ProtectedRoute>} />
                     <Route path="expenses" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Expenses /></ProtectedRoute>} />
+                    <Route path="posturas" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Posturas /></ProtectedRoute>} />
 
                     <Route path="sellers" element={<ProtectedRoute allowedRoles={['Admin', 'Supervisor']}><Sellers /></ProtectedRoute>} />
                     <Route path="agencies" element={<ProtectedRoute allowedRoles={['Admin']}><Agencies /></ProtectedRoute>} />

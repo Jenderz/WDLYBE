@@ -20,6 +20,24 @@ type StatusFilter = 'ALL' | 'debt' | 'credit' | 'settled';
 const fmt = (n: number) =>
     n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// ─── Icono por moneda ─────────────────────────────────────────────────────────
+const currencyIcon = (currency: string) => {
+    const c = currency.toUpperCase();
+    if (c.includes('DOLAR') || c === 'USD' || c === '$') return '🇺🇸';
+    if (c.includes('BOLIVAR') || c.includes('VES') || c === 'BS') return '🇻🇪';
+    if (c.includes('COLOMBIAN') || c.includes('COP')) return '🇨🇴';
+    return '💰';
+};
+
+// ─── Abreviatura de moneda ────────────────────────────────────────────────────
+const currencyShort = (currency: string) => {
+    const c = currency.toUpperCase();
+    if (c.includes('DOLAR') || c === 'USD') return 'USD';
+    if (c.includes('BOLIVAR') || c.includes('VES')) return 'VES';
+    if (c.includes('COLOMBIAN') || c.includes('COP')) return 'COP';
+    return currency.slice(0, 3).toUpperCase();
+};
+
 export const SellerBalanceTable = ({
     sales, payments, filterRange, filterPreset, rangeStart, rangeEnd, searchQuery
 }: Props) => {
@@ -110,6 +128,37 @@ export const SellerBalanceTable = ({
         });
     }, [rows, searchQuery, currencyFilter, statusFilter]);
 
+    // ─── Totales agrupados por moneda (sobre filteredRows) ────────────────────
+    const totalsByCurrency = useMemo(() => {
+        const map = new Map<string, {
+            currency: string;
+            totalBank: number;
+            totalPaid: number;
+            totalPayouts: number;
+            totalCredits: number;
+            balance: number;
+            count: number;
+        }>();
+        filteredRows.forEach(r => {
+            if (!map.has(r.currency)) {
+                map.set(r.currency, {
+                    currency: r.currency,
+                    totalBank: 0, totalPaid: 0,
+                    totalPayouts: 0, totalCredits: 0,
+                    balance: 0, count: 0,
+                });
+            }
+            const t = map.get(r.currency)!;
+            t.totalBank     += r.totalBank;
+            t.totalPaid     += r.totalPaid;
+            t.totalPayouts  += r.totalPayouts;
+            t.totalCredits  += r.totalCredits;
+            t.balance       += r.balance;
+            t.count++;
+        });
+        return Array.from(map.values()).sort((a, b) => a.currency.localeCompare(b.currency));
+    }, [filteredRows]);
+
     // ─── Contadores de estado para los badges ────────────────────────────────
     const counts = useMemo(() => ({
         debt:    rows.filter(r => r.balance > 0.01).length,
@@ -181,6 +230,66 @@ export const SellerBalanceTable = ({
                 )}
             </div>
 
+            {/* ─── Cards de Totales por Moneda ──────────────────────────────── */}
+            {totalsByCurrency.length > 0 && (
+                <div className="px-5 py-4 border-b border-black/5 dark:border-white/5 bg-black/[0.015] dark:bg-white/[0.015]">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-ios-subtext mb-3">
+                        📊 Resumen del período — {rangeLabel}
+                    </p>
+                    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(totalsByCurrency.length, 3)}, 1fr)` }}>
+                        {totalsByCurrency.map(t => (
+                            <div
+                                key={t.currency}
+                                className="rounded-xl border border-black/[0.07] dark:border-white/[0.07] bg-white/60 dark:bg-black/40 backdrop-blur-sm overflow-hidden"
+                            >
+                                {/* Header de la card */}
+                                <div className="px-4 py-2.5 flex items-center gap-2 border-b border-black/[0.05] dark:border-white/[0.05]">
+                                    <span className="text-base">{currencyIcon(t.currency)}</span>
+                                    <div>
+                                        <p className="text-[11px] font-black tracking-wider text-ios-text">{currencyShort(t.currency)}</p>
+                                        <p className="text-[9px] text-ios-subtext leading-tight">{t.count} vendedor(es)</p>
+                                    </div>
+                                    {/* Badge balance neto */}
+                                    <span className={`ml-auto text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                        t.balance > 0.01
+                                            ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                                            : t.balance < -0.01
+                                            ? 'bg-green-500/10 text-green-500 border border-green-500/20'
+                                            : 'bg-black/5 dark:bg-white/5 text-ios-subtext'
+                                    }`}>
+                                        {t.balance > 0 ? '+' : ''}{fmt(t.balance)}
+                                    </span>
+                                </div>
+
+                                {/* Métricas */}
+                                <div className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                                    <div>
+                                        <p className="text-[9px] uppercase tracking-wider text-ios-subtext font-semibold">Deuda Total</p>
+                                        <p className="text-xs font-bold font-mono text-ios-text">{fmt(t.totalBank)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[9px] uppercase tracking-wider text-ios-subtext font-semibold">Pagado</p>
+                                        <p className="text-xs font-bold font-mono text-ios-green">{fmt(t.totalPaid)}</p>
+                                    </div>
+                                    {t.totalPayouts > 0 && (
+                                        <div>
+                                            <p className="text-[9px] uppercase tracking-wider text-ios-subtext font-semibold">Retiros</p>
+                                            <p className="text-xs font-bold font-mono text-blue-500">{fmt(t.totalPayouts)}</p>
+                                        </div>
+                                    )}
+                                    {t.totalCredits > 0 && (
+                                        <div>
+                                            <p className="text-[9px] uppercase tracking-wider text-ios-subtext font-semibold">Créditos</p>
+                                            <p className="text-xs font-bold font-mono text-amber-500">{fmt(t.totalCredits)}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Tabla */}
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -241,6 +350,62 @@ export const SellerBalanceTable = ({
                             ))
                         )}
                     </tbody>
+
+                    {/* ─── Fila de TOTALES por moneda ───────────────────────────── */}
+                    {filteredRows.length > 0 && totalsByCurrency.map((t, idx) => (
+                        <tfoot key={t.currency}>
+                            {idx === 0 && (
+                                <tr>
+                                    <td colSpan={8} className="px-5 pt-3 pb-0">
+                                        <div className="h-[1px] bg-gradient-to-r from-transparent via-black/20 dark:via-white/20 to-transparent" />
+                                    </td>
+                                </tr>
+                            )}
+                            <tr className="bg-black/[0.025] dark:bg-white/[0.025]">
+                                <td className="px-5 py-3 font-black text-xs uppercase tracking-wider text-ios-subtext" colSpan={1}>
+                                    {currencyIcon(t.currency)} Total {currencyShort(t.currency)}
+                                </td>
+                                <td className="px-5 py-3 text-right">
+                                    <span className="text-[10px] font-bold font-mono text-ios-subtext bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded-full">
+                                        {t.count} vendedores
+                                    </span>
+                                </td>
+                                <td className="px-5 py-3 text-right font-black text-sm text-ios-text">
+                                    {fmt(t.totalBank)}
+                                </td>
+                                <td className="px-5 py-3 text-right font-black text-sm text-ios-green">
+                                    {fmt(t.totalPaid)}
+                                </td>
+                                <td className="px-5 py-3 text-right font-black text-sm text-blue-500">
+                                    {t.totalPayouts > 0 ? fmt(t.totalPayouts) : '—'}
+                                </td>
+                                <td className="px-5 py-3 text-right font-black text-sm text-amber-500">
+                                    {t.totalCredits > 0 ? fmt(t.totalCredits) : '—'}
+                                </td>
+                                <td className={`px-5 py-3 text-right font-black text-base ${
+                                    t.balance > 0.01 ? 'text-red-500' :
+                                    t.balance < -0.01 ? 'text-green-500' : 'text-ios-subtext'
+                                }`}>
+                                    {t.balance > 0 ? '+' : ''}{fmt(t.balance)}
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                    {t.balance > 0.01 ? (
+                                        <span className="px-2 py-1 rounded-full text-[10px] font-black bg-red-500/15 text-red-500 border border-red-500/30 whitespace-nowrap">
+                                            🔴 Nos deben
+                                        </span>
+                                    ) : t.balance < -0.01 ? (
+                                        <span className="px-2 py-1 rounded-full text-[10px] font-black bg-green-500/15 text-green-500 border border-green-500/30 whitespace-nowrap">
+                                            🟢 Les debemos
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 py-1 rounded-full text-[10px] font-black bg-black/5 dark:bg-white/5 text-ios-subtext border border-black/10 dark:border-white/10">
+                                            ✅ Equilibrado
+                                        </span>
+                                    )}
+                                </td>
+                            </tr>
+                        </tfoot>
+                    ))}
                 </table>
             </div>
 

@@ -1,4 +1,4 @@
-import { Users, Store, Receipt, Wallet, Banknote, LayoutDashboard, Settings, Activity } from 'lucide-react';
+import { Users, Store, Receipt, Wallet, Banknote, LayoutDashboard, Settings, Activity, ArrowDownCircle } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
@@ -6,6 +6,8 @@ export const ADMIN_MENU_ITEMS = [
     { id: 'collections', label: 'Recaudaciones', icon: Wallet, path: '/collections' },
     { id: 'transactions', label: 'Transacciones', icon: Activity, path: '/transactions' },
     { id: 'expenses', label: 'Gastos', icon: Banknote, path: '/expenses' },
+    { id: 'posturas', label: 'Posturas', icon: ArrowDownCircle, path: '/posturas' },
+
 
     { id: 'sellers', label: 'Vendedores', icon: Users, path: '/sellers' },
     { id: 'agencies', label: 'Agencias', icon: Store, path: '/agencies' },

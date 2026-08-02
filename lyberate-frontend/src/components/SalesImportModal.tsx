@@ -147,7 +147,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
     /**
      * Parser para el formato AMERICANAS.
      * La celda «Nombre» contiene: "BS EL MUÑECO - GRANDE (W DEPORTES)"
-     *   - Prefijo moneda : "BS" → BOLIVAR   |  "$" → DOLAR
+     *   - Prefijo moneda : "BS" → BOLIVARES VENEZOLANOS   |  "$" → DOLAR
      *   - Vendedor       : "EL MUÑECO"
      *   - Agencia/Grupo  : "GRANDE"  (entre " - " y " (")
      *   - Operadora      : "W DEPORTES" (dentro de paréntesis)
@@ -160,7 +160,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         let currency = '';
         let rest = s;
         if (/^BS\s*/i.test(s)) {
-            currency = 'BOLIVAR';
+            currency = 'BOLIVARES VENEZOLANOS';
             rest = s.replace(/^BS\s*/i, '');
         } else if (/^\$\s*/.test(s)) {
             currency = 'DOLAR';
@@ -215,7 +215,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
      * Parser para el formato MASTERGREEN / WORLDDEPORTES.
      * La primera columna «Taquillas» contiene: "paquejuancho Usd" o "cruces Bs"
      *   - Nombre vendedor : todo menos el sufijo de moneda
-     *   - Moneda          : "Usd" → DOLAR  |  "Bs" → BOLIVAR
+     *   - Moneda          : "Usd" → DOLAR  |  "Bs" → BOLIVARES VENEZOLANOS
      * Los montos ya vienen en formato europeo (242.600,00) que parseAmount maneja.
      * Si hay filas con ambas monedas, se crean entradas separadas por moneda.
      */
@@ -227,7 +227,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         const name = match[1].trim().toUpperCase();
         const currencyRaw = match[2].toUpperCase();
         if (!name) return null;
-        const currency = currencyRaw === 'BS' ? 'BOLIVAR' : 'DOLAR';
+        const currency = currencyRaw === 'BS' ? 'BOLIVARES VENEZOLANOS' : 'DOLAR';
         return { vendorName: name, currency };
     };
 
@@ -322,9 +322,9 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                 // Detectar moneda predominante para la sesión
                 // Si hay mezcla (Bs + Usd), usamos DOLAR como moneda de sesión
                 // pero las filas conservan su moneda en sourceRow._currency
-                const hasBs  = mgRows.some(r => r.sourceRow._currency === 'BOLIVAR');
+                const hasBs  = mgRows.some(r => r.sourceRow._currency === 'BOLIVARES VENEZOLANOS');
                 const hasUsd = mgRows.some(r => r.sourceRow._currency === 'DOLAR');
-                const sessionCurrency = (hasBs && !hasUsd) ? 'BOLIVAR' : 'DOLAR';
+                const sessionCurrency = (hasBs && !hasUsd) ? 'BOLIVARES VENEZOLANOS' : 'DOLAR';
 
                 setSession({
                     fileName,
@@ -343,7 +343,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         // ─── Detección formato AMERICANAS / Report Hipódromo ──────────────────
         // Nombres canónicos definidos por el usuario:
         //   • "Report $.xls"   → dólares   (DOLAR)
-        //   • "Report Bs.xls"  → bolívares (BOLIVAR)
+        //   • "Report Bs.xls"  → bolívares (BOLIVARES VENEZOLANOS)
         //   • "Report.xls"     → dólares   (DOLAR)  ← sin sufijo = dólar por defecto
         //
         // También aplica a variantes: AMERICANAS $.xlsx, AMERICANAS BS.xlsx,
@@ -375,7 +375,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                 fileNameUpper.includes('BOLIVAR') ||
                 /[\s_\-]BS[\s_\-\.]/i.test(fileNameUpper) ||
                 /[\s_\-]BS$/i.test(fileNameUpper);
-            forcedCurrency = isBsFile ? 'BOLIVAR' : 'DOLAR';
+            forcedCurrency = isBsFile ? 'BOLIVARES VENEZOLANOS' : 'DOLAR';
         }
 
         // 1. Detectar el nombre del producto sugerido basado en el contenido del archivo
@@ -1142,11 +1142,11 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                                                     {session.detectedType === 'mastergreen' && (
                                                         <td className="px-5 py-2.5">
                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                                                row.sourceRow?._currency === 'BOLIVAR'
+                                                                row.sourceRow?._currency === 'BOLIVARES VENEZOLANOS'
                                                                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                                                     : 'bg-ios-blue/10 text-ios-blue'
                                                             }`}>
-                                                                {row.sourceRow?._currency === 'BOLIVAR' ? 'Bs' : 'USD'}
+                                                                {row.sourceRow?._currency === 'BOLIVARES VENEZOLANOS' ? 'Bs' : 'USD'}
                                                             </span>
                                                         </td>
                                                     )}
