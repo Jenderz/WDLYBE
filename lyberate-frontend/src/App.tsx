@@ -59,7 +59,7 @@ const GenericPreloader = () => {
 const UnderConstruction = ({ title }: { title: string }) => (
     <div className="flex flex-col items-center justify-center h-full min-h-[50vh] animate-fade-in">
         <div className="bg-ios-blue/10 p-6 rounded-full mb-6">
-            <img src="https://freanpartners.com/upload/logoworlddeportes.webp" alt="WORLD DEPORTES" className="w-20 h-20 opacity-50 grayscale object-contain" />
+            <img src="/logo%20world%20deportes.webp" alt="WORLD DEPORTES" className="w-20 h-20 opacity-50 grayscale object-contain" />
         </div>
         <h2 className="text-2xl font-bold mb-2">Módulo: {title}</h2>
         <p className="text-ios-subtext text-center max-w-md">

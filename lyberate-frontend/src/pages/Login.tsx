@@ -35,7 +35,7 @@ export const Login = () => {
 
                 <div className="text-center mb-8">
                     <img
-                        src="https://freanpartners.com/upload/logoworlddeportes.webp"
+                        src="/logo%20world%20deportes.webp"
                         alt="WORLD DEPORTES Logo"
                         className="w-20 h-20 mx-auto mb-4 object-contain"
                     />

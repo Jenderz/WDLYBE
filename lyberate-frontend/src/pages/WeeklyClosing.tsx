@@ -508,7 +508,7 @@ export const WeeklyClosing = () => {
                         <div className="relative z-10 flex flex-col">
                             {/* Header */}
                             <div className="flex flex-col items-center mb-6">
-                                <img src="https://freanpartners.com/upload/logoworlddeportes.webp" alt="WORLD DEPORTES Logo" className="w-16 h-16 object-contain mb-2" />
+                                <img src="/logo%20world%20deportes.webp" alt="WORLD DEPORTES Logo" className="w-16 h-16 object-contain mb-2" />
                                 <h2 className="text-xl font-black text-black tracking-tight uppercase">Liquidación Semanal</h2>
                                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{printingRow.currency}</p>
                             </div>

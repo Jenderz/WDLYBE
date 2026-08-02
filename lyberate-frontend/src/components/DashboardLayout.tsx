@@ -37,7 +37,7 @@ export const DashboardLayout = () => {
                     <div className={`p-6 flex items-center ${isExpanded ? 'justify-between' : 'justify-center md:px-0'}`}>
                         <div className="flex items-center gap-3">
                             <img
-                                src="https://freanpartners.com/upload/logoworlddeportes.webp"
+                                src="/logo%20world%20deportes.webp"
                                 alt="WORLD DEPORTES Logo"
                                 className="w-10 h-10 object-contain drop-shadow-md shrink-0"
                             />

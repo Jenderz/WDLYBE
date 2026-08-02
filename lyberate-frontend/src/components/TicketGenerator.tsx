@@ -84,7 +84,7 @@ export const TicketGenerator = ({ id, type, amountUsd, amountVes, clientName, ag
                 {/* Visual del Ticket para Screenshot */}
                 <div className="p-6 bg-white text-black" ref={ticketRef} id="ticket-view">
                     <div className="text-center mb-5">
-                        <img src="https://freanpartners.com/upload/logoworlddeportes.webp" alt="Logo" className="w-14 h-14 mx-auto mb-2 opacity-100 object-contain" />
+                        <img src="/logo%20world%20deportes.webp" alt="Logo" className="w-14 h-14 mx-auto mb-2 opacity-100 object-contain" />
                         <h2 className="font-bold text-xl tracking-tight text-ios-text">WORLD DEPORTES</h2>
                         <p className="text-[10px] text-gray-500 font-semibold tracking-widest uppercase mt-0.5">Comprobante de Operación</p>
                     </div>

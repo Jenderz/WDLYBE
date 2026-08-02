@@ -47,7 +47,7 @@ export const VendorPortal = () => {
             {/* Top Nav (Glassmorphism) */}
             <header className="sticky top-0 z-40 bg-white/70 dark:bg-[#111]/70 backdrop-blur-xl border-b border-black/5 dark:border-white/5 px-4 py-3 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-3">
-                    <img src="https://freanpartners.com/upload/logoworlddeportes.webp" alt="WORLD DEPORTES" className="w-9 h-9 object-contain drop-shadow-sm" />
+                    <img src="/logo%20world%20deportes.webp" alt="WORLD DEPORTES" className="w-9 h-9 object-contain drop-shadow-sm" />
                     <div>
                         <p className="text-[10px] text-ios-subtext font-bold uppercase tracking-wider leading-none mb-0.5">Portal Vendedor</p>
                         <p className="text-sm font-bold leading-tight text-ios-text">{user?.name}</p>
