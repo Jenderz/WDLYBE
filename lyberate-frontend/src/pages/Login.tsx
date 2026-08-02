@@ -17,7 +17,9 @@ export const Login = () => {
         setLoading(true);
         try {
             const loggedUser = await login(email, password);
-            navigate(loggedUser.role === 'Vendedor' ? '/portal' : '/dashboard', { replace: true });
+            if (loggedUser) {
+                navigate(loggedUser.role === 'Vendedor' ? '/portal' : '/dashboard', { replace: true });
+            }
         } catch (err: any) {
             setError(err.message || 'Credenciales incorrectas. Verifica tu correo y contraseña.');
         } finally {
