@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import html2canvas from 'html2canvas';
+import { renderElementToDataUrl } from '../utils/ticketRenderer';
 import {
     CalendarCheck, ChevronDown, ChevronUp, Receipt,
     CheckCircle2, Clock, AlertCircle, Building2, Package, X, Download, Share2
@@ -176,37 +176,42 @@ export const WeeklyClosing = () => {
         // La captura se dispara desde el useEffect de abajo cuando el DOM esté listo
     };
 
-    // Disparar html2canvas justo después de que React pinte printingRow en el DOM
+    // Disparar renderizador justo después de que React pinte printingRow en el DOM
     useEffect(() => {
         if (!printingRow) return;
 
-        // Dos frames de animación garantizan que el DOM ya fue pintado por el browser
-        const raf1 = requestAnimationFrame(() => {
-            const raf2 = requestAnimationFrame(async () => {
-                if (!receiptRef.current) {
+        let isMounted = true;
+        // 120ms permite a React pintar completamente el DOM escondido de printingRow
+        const timer = setTimeout(async () => {
+            if (!receiptRef.current) {
+                if (isMounted) {
                     setPrintingRow(null);
                     setGeneratingFor(null);
-                    return;
                 }
-                try {
-                    const canvas = await html2canvas(receiptRef.current, {
-                        backgroundColor: '#ffffff',
-                        scale: 2,
-                        useCORS: true,   // Permite cargar el logo desde dominio externo
-                        logging: false,  // Silencia logs internos innecesarios
-                    });
-                    const image = canvas.toDataURL('image/png', 1.0);
+                return;
+            }
+            try {
+                const image = await renderElementToDataUrl(receiptRef.current, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                });
+                if (isMounted) {
                     setGeneratedImage({ url: image, sellerName: printingRow.sellerName, currency: printingRow.currency });
-                } catch (e) {
-                    console.error('Error generating receipt image', e);
-                } finally {
+                }
+            } catch (e) {
+                console.error('Error generating receipt image', e);
+            } finally {
+                if (isMounted) {
                     setPrintingRow(null);
                     setGeneratingFor(null);
                 }
-            });
-            return () => cancelAnimationFrame(raf2);
-        });
-        return () => cancelAnimationFrame(raf1);
+            }
+        }, 120);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timer);
+        };
     }, [printingRow]);
 
     // ── Generar ticket para un vendedor e invocar preview ─────────────────────
@@ -494,8 +499,8 @@ export const WeeklyClosing = () => {
                 </p>
             </div>
 
-            {/* PRE-RENDER DOM PARA HTML2CANVAS (ESCONDIDO) */}
-            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+            {/* PRE-RENDER DOM PARA CAPTURA (ESCONDIDO PERO EN VIEWPORT PARA MEDIR CORRECTAMENTE) */}
+            <div style={{ position: 'fixed', left: 0, top: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
                 <div
                     ref={receiptRef}
                     className="w-[420px] bg-white p-8 relative"

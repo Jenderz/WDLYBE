@@ -37,7 +37,7 @@ interface ImportSession {
     currency: string;
     date: string; // YYYY-MM-DD
     rows: RawRow[];
-    detectedType: 'betm3' | 'banklot' | 'maxplay' | 'americanas' | 'mastergreen' | 'unknown';
+    detectedType: 'betm3' | 'banklot' | 'maxplay' | 'americanas' | 'mastergreen' | 'adminwd' | 'unknown';
 }
 
 interface VendorConfig {
@@ -64,8 +64,15 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
     const [allSellers, setAllSellers] = useState<Seller[]>([]);
 
     // UI State
-    const [step, setStep] = useState<'upload' | 'preview' | 'resolution' | 'success'>('upload');
+    const [step, setStep] = useState<'upload' | 'preview' | 'resolution' | 'manual' | 'success'>('upload');
     const [missingVendors, setMissingVendors] = useState<VendorConfig[]>([]);
+    // Estado para el modo de mapeo manual de columnas
+    const [manualRawData, setManualRawData] = useState<{ fileName: string; data: any[][] } | null>(null);
+    const [manualVendorCol, setManualVendorCol] = useState<number>(-1);
+    const [manualSalesCol, setManualSalesCol] = useState<number>(-1);
+    const [manualPrizesCol, setManualPrizesCol] = useState<number>(-1);
+    const [manualSelectMode, setManualSelectMode] = useState<'vendor' | 'sales' | 'prizes'>('vendor');
+    const [manualStartRow, setManualStartRow] = useState<number>(1);
 
     useEffect(() => {
         const load = async () => {
@@ -221,13 +228,16 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
      */
     const parseMastergreenName = (raw: string): { currency: string; vendorName: string } | null => {
         const s = raw.trim();
-        // Sufijo al final: " Usd", " usd", " Bs", " bs" (con o sin espacio antes)
-        const match = s.match(/^(.+?)\s+(Usd|USD|Bs|BS|bs|usd)$/i);
+        // Sufijo al final: " Usd", " Bs", " Cop" — con o sin espacio antes
+        // Cop = Pesos Colombianos (COP)
+        const match = s.match(/^(.+?)\s+(Usd|USD|usd|Bs|BS|bs|Cop|COP|cop)$/i);
         if (!match) return null;
         const name = match[1].trim().toUpperCase();
         const currencyRaw = match[2].toUpperCase();
         if (!name) return null;
-        const currency = currencyRaw === 'BS' ? 'BOLIVARES VENEZOLANOS' : 'DOLAR';
+        const currency = currencyRaw === 'BS'  ? 'BOLIVARES VENEZOLANOS'
+                       : currencyRaw === 'COP' ? 'PESOS COLOMBIANOS'
+                       : 'DOLAR';
         return { vendorName: name, currency };
     };
 
@@ -240,27 +250,32 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         const fileNameUpper = fileName.toUpperCase();
         const contentStr = JSON.stringify(data.slice(0, 15)).toUpperCase();
 
-        // ─── Detección formato MASTERGREEN / WORLDDEPORTES ────────────────────
-        // Aplica a archivos que contengan "MASTERGREEN" en el nombre, o cuyo
-        // contenido tenga la cabecera "Taquillas" con sufijos "Usd" / "Bs".
-        const isMastergreen = fileNameUpper.includes('MASTERGREEN') || fileNameUpper.includes('WORLDDEPORTES');
+        // ─── Detección formato MASTERGREEN / WORLDDEPORTES / ADMINWD ─────────
+        // Aplica a archivos que contengan "MASTERGREEN", "WORLDDEPORTES" o "ADMINWD"
+        // en el nombre. Soporta cabeceras: "Taquillas", "Agentes", "G. Recogedores".
+        // Sufijos de moneda: "Usd" (Dólar), "Bs" (Bolívares), "Cop" (Pesos COP).
+        const isMastergreen = fileNameUpper.includes('MASTERGREEN')
+            || fileNameUpper.includes('WORLDDEPORTES')
+            || fileNameUpper.includes('ADMINWD');
         if (isMastergreen) {
-            detectedType = 'mastergreen';
-            // Producto: tomamos de la cabecera del archivo si viene en el nombre
+            detectedType = fileNameUpper.includes('ADMINWD') ? 'adminwd' : 'mastergreen';
             productName = 'WORLDDEPORTES';
 
-            // Buscar fila de encabezado con columna "Taquillas"
+            // Buscar fila de encabezado con columna "Taquillas" o "G. Recogedores"
             let taqIdx = -1, salesIdx = -1, prizesIdx = -1;
             let headerRowIndex = -1;
 
             for (let i = 0; i < Math.min(data.length, 10); i++) {
                 const row = data[i];
                 if (!row || !Array.isArray(row)) continue;
-                const tIdx = row.findIndex((c: any) => typeof c === 'string' && /^(taquillas?|agentes?)$/i.test(String(c).trim()));
+                const tIdx = row.findIndex((c: any) =>
+                    typeof c === 'string' &&
+                    /^(taquillas?|agentes?|g\.\s*recogedores?|recogedores?)$/i.test(String(c).trim())
+                );
                 if (tIdx !== -1) {
                     taqIdx = tIdx;
                     headerRowIndex = i;
-                    // Buscar columna de ventas: primera columna con /venta/i después de Taquillas
+                    // Buscar columna de ventas: primera columna con /venta/i después de la col. nombre
                     const vIdx = row.findIndex((c: any, j: number) => j > tIdx && typeof c === 'string' && /venta/i.test(c));
                     salesIdx = vIdx !== -1 ? vIdx : taqIdx + 1;
                     // Buscar columna de premios: primera columna con /premio/i
@@ -315,16 +330,18 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                 const mgRows = Array.from(consolidatedMG.values());
 
                 if (mgRows.length === 0) {
-                    alert("No se pudo leer ninguna taquilla en el archivo MASTERGREEN. Verifica que el formato sea correcto.");
+                    alert("No se pudo leer ninguna taquilla en el archivo. Verifica que el formato sea correcto.");
                     return;
                 }
 
-                // Detectar moneda predominante para la sesión
-                // Si hay mezcla (Bs + Usd), usamos DOLAR como moneda de sesión
-                // pero las filas conservan su moneda en sourceRow._currency
+                // Detectar moneda predominante para la sesión.
+                // Las filas conservan su moneda individual en sourceRow._currency.
                 const hasBs  = mgRows.some(r => r.sourceRow._currency === 'BOLIVARES VENEZOLANOS');
                 const hasUsd = mgRows.some(r => r.sourceRow._currency === 'DOLAR');
-                const sessionCurrency = (hasBs && !hasUsd) ? 'BOLIVARES VENEZOLANOS' : 'DOLAR';
+                const hasCop = mgRows.some(r => r.sourceRow._currency === 'PESOS COLOMBIANOS');
+                const sessionCurrency = (hasBs && !hasUsd && !hasCop) ? 'BOLIVARES VENEZOLANOS'
+                    : (hasCop && !hasUsd && !hasBs) ? 'PESOS COLOMBIANOS'
+                    : 'DOLAR';
 
                 setSession({
                     fileName,
@@ -335,7 +352,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                     detectedType
                 });
                 setStep('preview');
-                return; // Salida anticipada para MASTERGREEN
+                return; // Salida anticipada para MASTERGREEN / ADMINWD
             }
         }
         // ──────────────────────────────────────────────────────────────────────
@@ -689,7 +706,14 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         }
 
         if (rows.length === 0) {
-            alert("No se pudo detectar ningun formato en el archivo. Asegurate de que contenga una lista de nombres de agencias con sus montos de venta al lado.");
+            // Activar modo de mapeo manual: el usuario seleccionará las columnas manualmente
+            setManualRawData({ fileName, data });
+            setManualVendorCol(-1);
+            setManualSalesCol(-1);
+            setManualPrizesCol(-1);
+            setManualSelectMode('vendor');
+            setManualStartRow(headerRowIndex >= 0 ? headerRowIndex + 1 : 1);
+            setStep('manual');
             return;
         }
 
@@ -727,15 +751,15 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             
             // Check for duplicates
             const currentProductName = session.productName.toUpperCase();
-            const currentCurrency = session.currency.toUpperCase();
             const currentDate = session.date;
 
             const nonDuplicateRows = session.rows.filter(row => {
                 const vendorName = row.vendorName.toUpperCase();
+                const rowCurrency = (row.sourceRow?._currency || session.currency).toUpperCase();
                 const isDuplicate = allSales.some(sale => 
                     sale.sellerName.trim().toUpperCase() === vendorName.trim().toUpperCase() &&
                     sale.productName.toUpperCase() === currentProductName &&
-                    sale.currencyName.toUpperCase() === currentCurrency &&
+                    sale.currencyName.toUpperCase() === rowCurrency &&
                     sale.date === currentDate
                 );
                 return !isDuplicate;
@@ -769,10 +793,8 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                     const product = seller.products.find(p => String(p.id) === String(productId) || p.name.toUpperCase() === session.productName.toUpperCase());
                     if (!product) return true;
 
-                    const currencyConfig = product.currencies.find(c => String(c.id) === String(session.currency) || c.name.toUpperCase() === session.currency.toUpperCase());
-                    if (!currencyConfig) return true;
-
-                    return false;
+                    // Verificar si tiene al menos una moneda configurada para el producto
+                    return product.currencies.length === 0;
                 });
 
             const uniqueMissing = Array.from(new Set(missing));
@@ -941,6 +963,8 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                 const seller = allSellers.find(s => s.name.trim().toUpperCase() === row.vendorName.trim().toUpperCase());
                 if (!seller) continue;
 
+                const rowCurrency = row.sourceRow?._currency || activeSession.currency;
+
                 // Asegurar que el vendedor tenga el producto en su perfil
                 let product = seller.products.find(p => 
                     String(p.id) === String(productId) || p.name.toUpperCase() === activeSession.productName.toUpperCase()
@@ -950,19 +974,19 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                     product = {
                         id: productId,
                         name: activeSession.productName,
-                        currencies: [{ id: activeSession.currency, name: activeSession.currency, commissionPct: 0, partPct: 0 }]
+                        currencies: [{ id: rowCurrency, name: rowCurrency, commissionPct: 0, partPct: 0 }]
                     };
                     seller.products.push(product);
                 }
 
                 // Obtener moneda y sus porcentajes
                 let currencyConfig = product.currencies.find(c => 
-                    String(c.id) === String(activeSession.currency) || c.name.toUpperCase() === activeSession.currency.toUpperCase()
+                    String(c.id) === String(rowCurrency) || c.name.toUpperCase() === rowCurrency.toUpperCase()
                 );
 
                 // Si la moneda no existe en el producto del vendedor, la agregamos con 0% por defecto
                 if (!currencyConfig) {
-                    currencyConfig = { id: activeSession.currency, name: activeSession.currency, commissionPct: 0, partPct: 0 };
+                    currencyConfig = { id: rowCurrency, name: rowCurrency, commissionPct: 0, partPct: 0 };
                     product.currencies.push(currencyConfig);
                 }
 
@@ -982,7 +1006,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                     productId: product.id,
                     productName: activeSession.productName,
                     currencyId: currencyConfig.id,
-                    currencyName: activeSession.currency,
+                    currencyName: rowCurrency,
                     amount: row.sales,
                     prize: row.prizes,
                     commission: comision,
@@ -1010,6 +1034,10 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         setSession(null);
         setStep('upload');
         setMissingVendors([]);
+        setManualRawData(null);
+        setManualVendorCol(-1);
+        setManualSalesCol(-1);
+        setManualPrizesCol(-1);
     };
 
     const handleDeleteRow = (index: number) => {
@@ -1029,6 +1057,63 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             const newRows = session.rows.filter(r => r.vendorName.trim().toUpperCase() !== vendorToRemove.name.trim().toUpperCase());
             setSession({ ...session, rows: newRows });
         }
+    };
+
+    /**
+     * Confirma el mapeo manual de columnas y crea la sesión de importación.
+     * Requiere que manualVendorCol y manualSalesCol estén asignados.
+     */
+    const confirmManualMapping = () => {
+        if (!manualRawData || manualVendorCol === -1 || manualSalesCol === -1) return;
+        const { fileName, data } = manualRawData;
+
+        const rows: RawRow[] = [];
+        data.slice(manualStartRow).forEach((row: any[]) => {
+            if (!Array.isArray(row)) return;
+            const name = String(row[manualVendorCol] ?? '').trim().toUpperCase();
+            if (!name || /^total/i.test(name) || name.startsWith('-')) return;
+
+            let finalName = name;
+            if (sellerAliases[name]) {
+                const mappedSeller = allSellers.find(s => Number(s.id) === sellerAliases[name]);
+                if (mappedSeller) finalName = mappedSeller.name.toUpperCase();
+            }
+
+            const salesVal  = parseAmount(row[manualSalesCol]);
+            const prizesVal = manualPrizesCol !== -1 ? parseAmount(row[manualPrizesCol]) : 0;
+            if (salesVal === 0 && prizesVal === 0) return;
+
+            rows.push({ vendorName: finalName, sales: salesVal, prizes: prizesVal, sourceRow: row });
+        });
+
+        if (rows.length === 0) {
+            alert('No se pudieron extraer filas con esos ajustes. Revisa la selección de columnas y la fila de inicio.');
+            return;
+        }
+
+        // Consolidar filas con el mismo nombre de vendedor
+        const consolidated = new Map<string, RawRow>();
+        for (const row of rows) {
+            const key = row.vendorName.trim().toUpperCase();
+            const existing = consolidated.get(key);
+            if (existing) {
+                existing.sales  += row.sales;
+                existing.prizes += row.prizes;
+            } else {
+                consolidated.set(key, { ...row });
+            }
+        }
+
+        setSession({
+            fileName,
+            productName: '',
+            currency: 'DOLAR',
+            date: new Date().toISOString().split('T')[0],
+            rows: Array.from(consolidated.values()),
+            detectedType: 'unknown'
+        });
+        setManualRawData(null);
+        setStep('preview');
     };
 
     return (
@@ -1126,7 +1211,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                                         <thead className="sticky top-0 bg-white dark:bg-[#1c1c1e] z-10 border-b border-black/5 dark:border-white/5">
                                             <tr className="text-ios-subtext font-bold">
                                                 <th className="px-5 py-3">Vendedor</th>
-                                                {session.detectedType === 'mastergreen' && (
+                                                {(session.detectedType === 'mastergreen' || session.detectedType === 'adminwd') && (
                                                     <th className="px-5 py-3">Moneda</th>
                                                 )}
                                                 <th className="px-5 py-3 text-right">Ventas</th>
@@ -1139,14 +1224,18 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                                             {session.rows.map((row, i) => (
                                                 <tr key={i} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                                                     <td className="px-5 py-2.5 font-bold">{row.vendorName}</td>
-                                                    {session.detectedType === 'mastergreen' && (
+                                                    {(session.detectedType === 'mastergreen' || session.detectedType === 'adminwd') && (
                                                         <td className="px-5 py-2.5">
                                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                                                 row.sourceRow?._currency === 'BOLIVARES VENEZOLANOS'
                                                                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                                                    : 'bg-ios-blue/10 text-ios-blue'
+                                                                    : row.sourceRow?._currency === 'PESOS COLOMBIANOS'
+                                                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                                                        : 'bg-ios-blue/10 text-ios-blue'
                                                             }`}>
-                                                                {row.sourceRow?._currency === 'BOLIVARES VENEZOLANOS' ? 'Bs' : 'USD'}
+                                                                {row.sourceRow?._currency === 'BOLIVARES VENEZOLANOS' ? 'Bs'
+                                                                    : row.sourceRow?._currency === 'PESOS COLOMBIANOS' ? 'COP'
+                                                                    : 'USD'}
                                                             </span>
                                                         </td>
                                                     )}
@@ -1300,6 +1389,144 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                             </div>
                         </div>
                     )}
+
+                    {step === 'manual' && manualRawData && (() => {
+                        const allRows = manualRawData.data;
+                        const maxCols = Math.min(
+                            Math.max(...allRows.slice(0, 20).map((r: any[]) => Array.isArray(r) ? r.length : 0), 1),
+                            15
+                        );
+                        const modeColors = {
+                            vendor: { active: 'bg-ios-blue text-white border-transparent shadow-sm', col: 'bg-ios-blue/10 text-ios-blue font-bold', hover: 'hover:bg-ios-blue/5 dark:hover:bg-ios-blue/10' },
+                            sales:  { active: 'bg-emerald-500 text-white border-transparent shadow-sm', col: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold', hover: 'hover:bg-emerald-500/5 dark:hover:bg-emerald-500/10' },
+                            prizes: { active: 'bg-ios-red text-white border-transparent shadow-sm', col: 'bg-ios-red/10 text-ios-red font-bold', hover: 'hover:bg-ios-red/5 dark:hover:bg-ios-red/10' }
+                        };
+                        const modeLabels: Record<'vendor'|'sales'|'prizes', string> = {
+                            vendor: '👤 Nombre',
+                            sales:  '💰 Ventas',
+                            prizes: '🏆 Premios (opcional)'
+                        };
+                        const getColStyle = (ci: number) => {
+                            if (ci === manualVendorCol) return modeColors.vendor.col;
+                            if (ci === manualSalesCol)  return modeColors.sales.col;
+                            if (ci === manualPrizesCol) return modeColors.prizes.col;
+                            return 'text-ios-subtext';
+                        };
+                        const handleColClick = (ci: number) => {
+                            if (manualSelectMode === 'vendor')      setManualVendorCol(ci);
+                            else if (manualSelectMode === 'sales')  setManualSalesCol(ci);
+                            else                                     setManualPrizesCol(ci);
+                        };
+                        return (
+                            <div className="animate-fade-in space-y-5">
+                                {/* Cabecera informativa */}
+                                <div className="text-center space-y-2">
+                                    <div className="w-14 h-14 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto">
+                                        <FileUp size={28} />
+                                    </div>
+                                    <h3 className="text-lg font-bold">Mapeo Manual de Columnas</h3>
+                                    <p className="text-xs text-ios-subtext max-w-sm mx-auto">
+                                        El formato no pudo detectarse automáticamente.
+                                        Selecciona el modo y haz clic en una columna para asignarla.
+                                        <b> Nombre</b> y <b>Ventas</b> son obligatorias.
+                                    </p>
+                                </div>
+
+                                {/* Botones de modo */}
+                                <div className="flex flex-wrap gap-2 justify-center">
+                                    {(['vendor', 'sales', 'prizes'] as const).map(mode => {
+                                        const colIdx = mode === 'vendor' ? manualVendorCol : mode === 'sales' ? manualSalesCol : manualPrizesCol;
+                                        const isActive = manualSelectMode === mode;
+                                        return (
+                                            <button
+                                                key={mode}
+                                                onClick={() => setManualSelectMode(mode)}
+                                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border-2 ${
+                                                    isActive
+                                                        ? modeColors[mode].active
+                                                        : 'border-black/10 dark:border-white/10 text-ios-subtext hover:bg-black/5'
+                                                }`}
+                                            >
+                                                {modeLabels[mode]}{colIdx !== -1 ? ` → Col ${colIdx + 1}` : ''}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Control de fila de inicio */}
+                                <div className="flex items-center gap-3 justify-center">
+                                    <span className="text-xs text-ios-subtext font-semibold">Primera fila de datos:</span>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={allRows.length}
+                                        value={manualStartRow + 1}
+                                        onChange={e => setManualStartRow(Math.max(0, Number(e.target.value) - 1))}
+                                        className="w-20 bg-black/5 dark:bg-white/5 border-none rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-ios-blue outline-none text-center"
+                                    />
+                                    <span className="text-[10px] text-ios-subtext">(filas anteriores se atenúan)</span>
+                                </div>
+
+                                {/* Tabla de datos raw interactiva */}
+                                <div className="glass-panel rounded-2xl border border-black/5 dark:border-white/10 overflow-hidden">
+                                    <div className="overflow-auto max-h-64 no-scrollbar">
+                                        <table className="w-full text-left text-xs min-w-max">
+                                            <thead className="sticky top-0 bg-white dark:bg-[#1c1c1e] z-10 border-b border-black/5 dark:border-white/5">
+                                                <tr>
+                                                    {Array.from({ length: maxCols }, (_, ci) => (
+                                                        <th
+                                                            key={ci}
+                                                            onClick={() => handleColClick(ci)}
+                                                            title={`Clic para asignar a: ${modeLabels[manualSelectMode]}`}
+                                                            className={`px-3 py-2.5 cursor-pointer select-none whitespace-nowrap transition-colors border-r border-black/5 dark:border-white/5 last:border-r-0 ${getColStyle(ci)} ${
+                                                                ci !== manualVendorCol && ci !== manualSalesCol && ci !== manualPrizesCol
+                                                                    ? modeColors[manualSelectMode].hover
+                                                                    : ''
+                                                            }`}
+                                                        >
+                                                            {ci === manualVendorCol ? '👤 Nombre'
+                                                             : ci === manualSalesCol ? '💰 Ventas'
+                                                             : ci === manualPrizesCol ? '🏆 Premios'
+                                                             : `Col ${ci + 1}`}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-black/5 dark:divide-white/5">
+                                                {allRows.slice(0, 25).map((row: any[], ri) => (
+                                                    <tr key={ri} className={`transition-colors ${ri < manualStartRow ? 'opacity-30' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}>
+                                                        {Array.from({ length: maxCols }, (_, ci) => (
+                                                            <td
+                                                                key={ci}
+                                                                onClick={() => handleColClick(ci)}
+                                                                className={`px-3 py-1.5 cursor-pointer transition-colors whitespace-nowrap border-r border-black/5 dark:border-white/5 last:border-r-0 ${getColStyle(ci)}`}
+                                                            >
+                                                                {String(Array.isArray(row) ? (row[ci] ?? '') : '')}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Acciones */}
+                                <div className="flex justify-end gap-3 pt-1">
+                                    <button onClick={reset} className="px-6 py-3 rounded-2xl text-sm font-bold text-ios-subtext hover:bg-black/5">
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={confirmManualMapping}
+                                        disabled={manualVendorCol === -1 || manualSalesCol === -1}
+                                        className="px-8 py-3 bg-ios-blue text-white rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-ios-blue/20 active:scale-95 transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <CheckCircle2 size={16} /> Confirmar y Previsualizar
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {step === 'success' && (
                         <div className="animate-fade-in flex flex-col items-center justify-center gap-6 py-8 text-center">

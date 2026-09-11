@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import { renderElementToDataUrl } from '../utils/ticketRenderer';
 import { Download, Share2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface TicketProps {
@@ -31,19 +31,36 @@ interface TicketProps {
 export const TicketGenerator = ({ id, type, amountUsd, amountVes, clientName, agencyName, date, onClose, saleBreakdown }: TicketProps) => {
     const ticketRef = useRef<HTMLDivElement>(null);
     const [isGenerating, setIsGenerating] = useState(false);
+    const cachedDataUrlRef = useRef<string | null>(null);
+    const cachedBlobRef = useRef<Blob | null>(null);
+
+    const generateImage = async (): Promise<{ dataUrl: string; blob: Blob | null }> => {
+        if (cachedDataUrlRef.current && cachedBlobRef.current) {
+            return { dataUrl: cachedDataUrlRef.current, blob: cachedBlobRef.current };
+        }
+        if (!ticketRef.current) throw new Error("Ticket view reference not ready");
+
+        const dataUrl = await renderElementToDataUrl(ticketRef.current, { scale: 2, backgroundColor: '#ffffff' });
+        let blob: Blob | null = null;
+        try {
+            const res = await fetch(dataUrl);
+            blob = await res.blob();
+        } catch (e) {
+            console.error("Error converting dataUrl to blob:", e);
+        }
+
+        cachedDataUrlRef.current = dataUrl;
+        cachedBlobRef.current = blob;
+        return { dataUrl, blob };
+    };
 
     const handleDownload = async () => {
         if (!ticketRef.current) return;
         setIsGenerating(true);
         try {
-            const canvas = await html2canvas(ticketRef.current, {
-                scale: 2, // Alta resolución
-                backgroundColor: '#ffffff',
-                useCORS: true,
-            });
-            const image = canvas.toDataURL('image/png');
+            const { dataUrl } = await generateImage();
             const link = document.createElement('a');
-            link.href = image;
+            link.href = dataUrl;
             link.download = `Ticket_${type}_${id}.png`;
             link.click();
         } catch (error) {
@@ -57,21 +74,22 @@ export const TicketGenerator = ({ id, type, amountUsd, amountVes, clientName, ag
         if (!ticketRef.current) return;
         setIsGenerating(true);
         try {
-            const canvas = await html2canvas(ticketRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-            canvas.toBlob(async (blob) => {
-                if (blob && navigator.share) {
-                    const file = new File([blob], `Ticket_${id}.png`, { type: 'image/png' });
-                    await navigator.share({
-                        title: `Comprobante ${id}`,
-                        text: `Adjunto comprobante de ${type} por $${amountUsd}`,
-                        files: [file]
-                    });
-                } else {
-                    alert('El uso compartido web nativo no está soportado en este navegador. Por favor descarga la imagen e inténtalo manualmente.');
-                }
-            });
+            const { dataUrl, blob } = await generateImage();
+            if (blob && navigator.share) {
+                const file = new File([blob], `Ticket_${id}.png`, { type: 'image/png' });
+                await navigator.share({
+                    title: `Comprobante ${id}`,
+                    text: `Adjunto comprobante de ${type} por $${amountUsd}`,
+                    files: [file]
+                });
+            } else {
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `Ticket_${type}_${id}.png`;
+                link.click();
+            }
         } catch (error) {
-            console.error(error);
+            console.error("Error sharing ticket:", error);
         } finally {
             setIsGenerating(false);
         }
