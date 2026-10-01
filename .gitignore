@@ -4,3 +4,6 @@ dist/
 build/
 *.local
 *.csv
+Report-*.xls
+*.xls
+*.xlsx
