@@ -2,6 +2,7 @@ import React from 'react';
 import { UserPlus, Percent, Building2, Trash2, Loader2 } from 'lucide-react';
 import { VendorConfig, ImportSession } from './types';
 import { Seller } from '../../services/apiService';
+import { normalizeCurrency, normalizeProductName } from '../../utils/importNormalize';
 
 interface ResolutionStepProps {
     missingVendors: VendorConfig[];
@@ -95,50 +96,61 @@ export const ResolutionStep: React.FC<ResolutionStepProps> = ({
             <div className="space-y-3 max-h-72 overflow-y-auto no-scrollbar pr-1">
                 {missingVendors.map((v, i) => {
                     const mappedSeller = v.mappedSellerId ? allSellers.find(s => Number(s.id) === v.mappedSellerId) : null;
-                    const mappedProduct = mappedSeller && session
-                        ? mappedSeller.products.find(p => String(p.id) === `p-${session.productName.toLowerCase().replace(/\s/g, '-')}` || p.name.toUpperCase() === session.productName.toUpperCase())
-                        : null;
-                    const mappedCurrency = mappedProduct && session
-                        ? mappedProduct.currencies.find(c => String(c.id) === String(session.currency) || c.name.toUpperCase() === session.currency.toUpperCase())
-                        : null;
-                    const needsPercentages = !v.mappedSellerId || !mappedProduct || !mappedCurrency;
                     const associatedCount = session
                         ? session.rows.filter(r => r.vendorName.trim().toUpperCase() === v.name.trim().toUpperCase()).length
                         : 0;
 
                     return (
                         <div key={i} className="glass-panel p-4 rounded-2xl border border-black/5 dark:border-white/5 flex flex-col gap-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-ios-red animate-pulse"></div>
+                            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                                <div className={`w-2.5 h-2.5 rounded-full ${mappedSeller ? 'bg-ios-blue' : (v.isExisting ? 'bg-ios-green' : 'bg-amber-500 animate-pulse')}`}></div>
                                 <span className="font-bold text-sm truncate flex-1">{v.name}</span>
                                 {associatedCount > 0 && (
-                                    <span className="text-[10px] text-ios-subtext font-semibold px-2 py-0.5 bg-black/5 dark:bg-white/5 rounded-md flex items-center gap-1">
+                                    <span className="text-[10px] text-ios-subtext font-semibold px-2 py-0.5 bg-black/5 dark:bg-white/5 rounded-md flex items-center gap-1 shrink-0">
                                         <Building2 size={11} /> {associatedCount} taquillas
                                     </span>
                                 )}
 
-                                {!v.isExisting ? (
-                                    <select
-                                        value={v.mappedSellerId || ''}
-                                        onChange={e => {
-                                            const copy = [...missingVendors];
-                                            copy[i].mappedSellerId = e.target.value ? Number(e.target.value) : null;
-                                            setMissingVendors(copy);
-                                        }}
-                                        className="bg-black/5 dark:bg-white/5 border-none rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-ios-blue outline-none max-w-[200px]"
-                                    >
-                                        <option value="">Crear como nuevo Grupo (Requiere %)</option>
-                                        {allSellers.map(s => (
-                                            <option key={String(s.id)} value={Number(s.id)}>
-                                                Asignar al Grupo {s.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <span className="text-[10px] text-ios-blue font-bold px-3 py-1 bg-ios-blue/10 rounded-full">
-                                        Grupo existente (Requiere % para Moneda/Producto)
-                                    </span>
-                                )}
+                                <select
+                                    value={v.mappedSellerId || ''}
+                                    onChange={e => {
+                                        const copy = [...missingVendors];
+                                        const newSellerId = e.target.value ? Number(e.target.value) : null;
+                                        copy[i].mappedSellerId = newSellerId;
+                                        if (newSellerId) {
+                                            const target = allSellers.find(s => Number(s.id) === newSellerId);
+                                            if (target && session) {
+                                                const tProd = target.products?.find(p => normalizeProductName(p.name) === normalizeProductName(session.productName));
+                                                const tCurr = tProd?.currencies?.find(c => normalizeCurrency(String(c.name || c.id)) === normalizeCurrency(session.currency));
+                                                if (tCurr) {
+                                                    const comm = Number(tCurr.commissionPct ?? 0);
+                                                    const part = Number(tCurr.partPct ?? 0);
+                                                    copy[i].commissionPct = comm;
+                                                    copy[i].partPct = part;
+                                                    if (copy[i].products) {
+                                                        copy[i].products = copy[i].products!.map(p => ({
+                                                            ...p,
+                                                            commissionPct: comm,
+                                                            partPct: part
+                                                        }));
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        setMissingVendors(copy);
+                                    }}
+                                    className="bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-ios-blue outline-none max-w-[240px] truncate"
+                                >
+                                    <option value="">
+                                        {v.isExisting ? `Mantener como ${v.name} (Directo)` : `Crear como nuevo Grupo (${v.name})`}
+                                    </option>
+                                    {allSellers.map(s => (
+                                        <option key={String(s.id)} value={Number(s.id)}>
+                                            Asignar al Grupo {s.name}
+                                        </option>
+                                    ))}
+                                </select>
+
                                 <button
                                     onClick={() => onRemoveMissingVendor(i)}
                                     className="p-1.5 text-ios-red/70 hover:text-ios-red hover:bg-ios-red/10 rounded-xl transition-colors shrink-0"
@@ -149,113 +161,135 @@ export const ResolutionStep: React.FC<ResolutionStepProps> = ({
                                 </button>
                             </div>
 
-                            {needsPercentages && (
-                                <>
-                                    {v.products && v.products.length > 0 ? (
-                                        <div className="space-y-2 mt-1">
-                                            <span className="text-[10px] font-bold text-ios-subtext uppercase tracking-wider">
-                                                Modalidades / Productos a configurar:
+                            {/* Configuración de Porcentajes Siempre Visible y Editable */}
+                            {v.products && v.products.length > 0 ? (
+                                <div className="space-y-2 mt-1">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-bold text-ios-subtext uppercase tracking-wider">
+                                            Modalidades / Productos a configurar:
+                                        </span>
+                                        {mappedSeller && (
+                                            <span className="text-[10px] text-ios-blue font-bold">
+                                                Asignado a: {mappedSeller.name}
                                             </span>
-                                            <div className="grid grid-cols-1 gap-2">
-                                                {v.products.map((p, pIdx) => (
-                                                    <div
-                                                        key={pIdx}
-                                                        className="bg-black/5 dark:bg-white/5 p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-black/5 dark:border-white/5"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-bold text-ios-blue">{p.productName}</span>
-                                                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-ios-blue/10 text-ios-blue font-semibold">
-                                                                {p.currency}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[10px] font-bold text-ios-subtext uppercase">Venta:</span>
-                                                                <div className="relative flex items-center">
-                                                                    <input
-                                                                        type="number"
-                                                                        value={p.commissionPct}
-                                                                        onChange={e => {
-                                                                            const copy = [...missingVendors];
-                                                                            if (copy[i].products) {
-                                                                                copy[i].products![pIdx].commissionPct = Number(e.target.value);
-                                                                            }
-                                                                            setMissingVendors(copy);
-                                                                        }}
-                                                                        className="w-16 bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-black text-right focus:ring-1 focus:ring-ios-blue outline-none"
-                                                                    />
-                                                                    <span className="text-[10px] font-bold text-ios-subtext ml-1">%</span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="text-[10px] font-bold text-ios-subtext uppercase">Part:</span>
-                                                                <div className="relative flex items-center">
-                                                                    <input
-                                                                        type="number"
-                                                                        value={p.partPct}
-                                                                        onChange={e => {
-                                                                            const copy = [...missingVendors];
-                                                                            if (copy[i].products) {
-                                                                                copy[i].products![pIdx].partPct = Number(e.target.value);
-                                                                            }
-                                                                            setMissingVendors(copy);
-                                                                        }}
-                                                                        className="w-16 bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-black text-right focus:ring-1 focus:ring-ios-blue outline-none"
-                                                                    />
-                                                                    <span className="text-[10px] font-bold text-ios-subtext ml-1">%</span>
-                                                                </div>
-                                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {v.products.map((p, pIdx) => (
+                                            <div
+                                                key={pIdx}
+                                                className="bg-black/5 dark:bg-white/5 p-2.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-black/5 dark:border-white/5"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold text-ios-blue">{p.productName}</span>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-ios-blue/10 text-ios-blue font-semibold">
+                                                        {p.currency}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-bold text-ios-subtext uppercase">Venta:</span>
+                                                        <div className="relative flex items-center">
+                                                            <input
+                                                                type="number"
+                                                                value={p.commissionPct}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value);
+                                                                    const copy = [...missingVendors];
+                                                                    if (copy[i].products) {
+                                                                        copy[i].products![pIdx].commissionPct = val;
+                                                                    }
+                                                                    if (pIdx === 0) copy[i].commissionPct = val;
+                                                                    setMissingVendors(copy);
+                                                                }}
+                                                                className="w-16 bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-black text-right focus:ring-1 focus:ring-ios-blue outline-none"
+                                                            />
+                                                            <span className="text-[10px] font-bold text-ios-subtext ml-1">%</span>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-4">
-                                            <div className="flex-1 space-y-1">
-                                                <label className="text-[10px] font-bold text-ios-subtext uppercase">Venta (%)</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="number"
-                                                        value={v.commissionPct}
-                                                        onChange={e => {
-                                                            const copy = [...missingVendors];
-                                                            copy[i].commissionPct = Number(e.target.value);
-                                                            setMissingVendors(copy);
-                                                        }}
-                                                        className="w-full bg-black/5 dark:bg-white/5 border-none rounded-xl px-3 py-2 text-sm font-black focus:ring-1 focus:ring-ios-blue outline-none"
-                                                    />
-                                                    <Percent size={12} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-30" />
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-bold text-ios-subtext uppercase">Part:</span>
+                                                        <div className="relative flex items-center">
+                                                            <input
+                                                                type="number"
+                                                                value={p.partPct}
+                                                                onChange={e => {
+                                                                    const val = Number(e.target.value);
+                                                                    const copy = [...missingVendors];
+                                                                    if (copy[i].products) {
+                                                                        copy[i].products![pIdx].partPct = val;
+                                                                    }
+                                                                    if (pIdx === 0) copy[i].partPct = val;
+                                                                    setMissingVendors(copy);
+                                                                }}
+                                                                className="w-16 bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-black text-right focus:ring-1 focus:ring-ios-blue outline-none"
+                                                            />
+                                                            <span className="text-[10px] font-bold text-ios-subtext ml-1">%</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex-1 space-y-1">
-                                                <label className="text-[10px] font-bold text-ios-subtext uppercase">Neto/Part (%)</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="number"
-                                                        value={v.partPct}
-                                                        onChange={e => {
-                                                            const copy = [...missingVendors];
-                                                            copy[i].partPct = Number(e.target.value);
-                                                            setMissingVendors(copy);
-                                                        }}
-                                                        className="w-full bg-black/5 dark:bg-white/5 border-none rounded-xl px-3 py-2 text-sm font-black focus:ring-1 focus:ring-ios-blue outline-none"
-                                                    />
-                                                    <Percent size={12} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-30" />
-                                                </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-ios-subtext">
+                                        <span className="uppercase">Porcentajes para este vendedor:</span>
+                                        {mappedSeller ? (
+                                            <span className="text-ios-blue">Asignado a {mappedSeller.name}</span>
+                                        ) : (
+                                            <span>{v.isExisting ? 'Grupo Existente' : 'Nuevo Grupo'}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex-1 space-y-1">
+                                            <label className="text-[10px] font-bold text-ios-subtext uppercase">Venta (%)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    value={v.commissionPct}
+                                                    onChange={e => {
+                                                        const val = Number(e.target.value);
+                                                        const copy = [...missingVendors];
+                                                        copy[i].commissionPct = val;
+                                                        if (copy[i].products) {
+                                                            copy[i].products = copy[i].products!.map(p => ({ ...p, commissionPct: val }));
+                                                        }
+                                                        setMissingVendors(copy);
+                                                    }}
+                                                    className="w-full bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-sm font-black focus:ring-1 focus:ring-ios-blue outline-none"
+                                                />
+                                                <Percent size={12} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-30" />
                                             </div>
                                         </div>
-                                    )}
-                                </>
-                            )}
-                            {v.mappedSellerId && !needsPercentages && (
-                                <div className="text-[10px] text-ios-blue font-bold px-2">
-                                    Se usará este vendedor y se guardará la regla de autocompletado para futuras importaciones. Usará sus porcentajes actuales.
+                                        <div className="flex-1 space-y-1">
+                                            <label className="text-[10px] font-bold text-ios-subtext uppercase">Neto/Part (%)</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="number"
+                                                    value={v.partPct}
+                                                    onChange={e => {
+                                                        const val = Number(e.target.value);
+                                                        const copy = [...missingVendors];
+                                                        copy[i].partPct = val;
+                                                        if (copy[i].products) {
+                                                            copy[i].products = copy[i].products!.map(p => ({ ...p, partPct: val }));
+                                                        }
+                                                        setMissingVendors(copy);
+                                                    }}
+                                                    className="w-full bg-white dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl px-3 py-2 text-sm font-black focus:ring-1 focus:ring-ios-blue outline-none"
+                                                />
+                                                <Percent size={12} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-30" />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
-                            {v.mappedSellerId && needsPercentages && (
-                                <div className="text-[10px] text-ios-blue font-bold px-2">
-                                    Este vendedor no tiene los porcentajes para estos productos. Por favor configúralos arriba.
+
+                            {mappedSeller && (
+                                <div className="text-[10px] text-ios-subtext px-1">
+                                    💡 Se vinculará a <strong>{mappedSeller.name}</strong> guardando el alias. Puedes personalizar sus porcentajes arriba si no debe tener el mismo porcentaje base.
                                 </div>
                             )}
                         </div>

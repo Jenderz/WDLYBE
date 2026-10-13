@@ -1,5 +1,16 @@
+export interface ConsolidatedSource {
+    originalName: string;
+    agencyName?: string;
+    sales: number;
+    prizes: number;
+    isAliased?: boolean;
+}
+
 export interface RawRow {
     vendorName: string;
+    originalName?: string;
+    isAliased?: boolean;
+    sources?: ConsolidatedSource[];
     agencyName?: string;
     productName?: string; // Sub-producto individual (ej. "PARLEY 4+", "PARLEY 3L", "PARLEY 2L", "PARLEY PD")
     sales: number;
@@ -13,7 +24,7 @@ export interface ImportSession {
     currency: string;
     date: string; // YYYY-MM-DD
     rows: RawRow[];
-    detectedType: 'betm3' | 'banklot' | 'maxplay' | 'americanas' | 'mastergreen' | 'adminwd' | 'parley' | 'universal' | 'unknown';
+    detectedType: 'betm3' | 'banklot' | 'maxplay' | 'gato' | 'americanas' | 'mastergreen' | 'adminwd' | 'parley' | 'universal' | 'unknown';
 }
 
 export interface VendorProductPendingConfig {

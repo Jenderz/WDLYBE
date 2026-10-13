@@ -19,6 +19,7 @@ import { roundFinance } from '../utils/finance';
 
 import {
     RawRow,
+    ConsolidatedSource,
     ImportSession,
     VendorConfig,
     ManualRawData,
@@ -161,15 +162,30 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
         const updatedRows = session.rows.map((row, idx) => {
             if (indicesToUpdate.includes(idx)) {
-                return { ...row, vendorName: cleanTarget };
+                const existingSources: ConsolidatedSource[] = row.sources && row.sources.length > 0
+                    ? row.sources
+                    : [{
+                        originalName: row.originalName || row.vendorName,
+                        agencyName: row.agencyName,
+                        sales: row.sales,
+                        prizes: row.prizes,
+                        isAliased: true
+                    }];
+                return {
+                    ...row,
+                    vendorName: cleanTarget,
+                    isAliased: true,
+                    originalName: row.originalName || row.vendorName,
+                    sources: existingSources
+                };
             }
             return row;
         });
 
         const consolidatedMap = new Map<string, RawRow>();
         for (const r of updatedRows) {
-            const prod = (r.productName || session.productName).trim().toUpperCase();
-            const curr = (r.sourceRow?._currency || session.currency).trim().toUpperCase();
+            const prod = normalizeProductName(r.productName || session.productName);
+            const curr = normalizeCurrency(r.sourceRow?._currency || session.currency);
             const agency = (r.agencyName || '').trim().toUpperCase();
             const vend = r.vendorName.trim().toUpperCase();
             const key = `${vend}||${prod}||${agency}||${curr}`;
@@ -177,8 +193,26 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             if (existing) {
                 existing.sales += r.sales;
                 existing.prizes += r.prizes;
+                if (r.sources && r.sources.length > 0) {
+                    existing.sources = [...(existing.sources || []), ...r.sources];
+                }
+                if (r.isAliased) existing.isAliased = true;
             } else {
-                consolidatedMap.set(key, { ...r });
+                consolidatedMap.set(key, {
+                    ...r,
+                    productName: prod,
+                    sources: r.sources ? [...r.sources] : [{
+                        originalName: r.originalName || r.vendorName,
+                        agencyName: r.agencyName,
+                        sales: r.sales,
+                        prizes: r.prizes,
+                        isAliased: r.isAliased
+                    }],
+                    sourceRow: {
+                        ...(r.sourceRow || {}),
+                        _currency: curr
+                    }
+                });
             }
         }
         const newRows = Array.from(consolidatedMap.values());
@@ -209,7 +243,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         if (!session || indices.length === 0) return;
 
         const targets = Array.from(new Set(
-            indices.map(idx => (session.rows[idx]?.agencyName || session.rows[idx]?.vendorName || '').trim().toUpperCase()).filter(Boolean)
+            indices.map(idx => (session.rows[idx]?.agencyName || session.rows[idx]?.originalName || session.rows[idx]?.vendorName || '').trim().toUpperCase()).filter(Boolean)
         ));
 
         // 1. Desvincular alias de la base de datos
@@ -235,8 +269,20 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         // 2. Actualizar filas en la sesión
         const updatedRows = session.rows.map((row, idx) => {
             if (indices.includes(idx)) {
-                const cleanName = (row.agencyName || row.vendorName).trim().toUpperCase();
-                return { ...row, vendorName: cleanName };
+                const cleanName = (row.agencyName || row.originalName || row.vendorName).trim().toUpperCase();
+                return {
+                    ...row,
+                    vendorName: cleanName,
+                    originalName: cleanName,
+                    isAliased: false,
+                    sources: [{
+                        originalName: cleanName,
+                        agencyName: row.agencyName,
+                        sales: row.sales,
+                        prizes: row.prizes,
+                        isAliased: false
+                    }]
+                };
             }
             return row;
         });
@@ -253,8 +299,11 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             if (existing) {
                 existing.sales += r.sales;
                 existing.prizes += r.prizes;
+                if (r.sources && r.sources.length > 0) {
+                    existing.sources = [...(existing.sources || []), ...r.sources];
+                }
             } else {
-                consolidatedMap.set(key, { ...r });
+                consolidatedMap.set(key, { ...r, sources: r.sources ? [...r.sources] : [] });
             }
         }
 
@@ -270,13 +319,74 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         const cleanName = standaloneName.trim().toUpperCase();
 
         const indicesToUpdate = session.rows
-            .map((r, idx) => ((r.agencyName?.trim().toUpperCase() === cleanName) || (r.vendorName.trim().toUpperCase() === cleanName)) ? idx : -1)
+            .map((r, idx) => ((r.agencyName?.trim().toUpperCase() === cleanName) || (r.originalName?.trim().toUpperCase() === cleanName) || (r.vendorName.trim().toUpperCase() === cleanName)) ? idx : -1)
             .filter(idx => idx !== -1);
 
         if (indicesToUpdate.length === 0) return;
 
         await handleBulkMakeStandalone(indicesToUpdate);
         setIsGroupingModalOpen(false);
+    };
+
+    /**
+     * Separa una taquilla específica de una fila consolidada con múltiples orígenes:
+     */
+    const handleSeparateSource = async (rowIndex: number, sourceIndex: number) => {
+        if (!session || !session.rows[rowIndex]) return;
+        const targetRow = session.rows[rowIndex];
+        if (!targetRow.sources || targetRow.sources.length <= 1) return;
+
+        const sourceToSeparate = targetRow.sources[sourceIndex];
+        const cleanName = sourceToSeparate.originalName.trim().toUpperCase();
+
+        // 1. Borrar alias en base de datos
+        try {
+            await deleteSellerAlias(cleanName);
+            setSellerAliases(prev => {
+                const copy = { ...prev };
+                delete copy[cleanName];
+                return copy;
+            });
+        } catch (err) {
+            console.warn("Aviso al desvincular alias de taquilla separada:", err);
+        }
+
+        // 2. Modificar la fila original descontando este origen
+        const remainingSources = targetRow.sources.filter((_, idx) => idx !== sourceIndex);
+        const updatedTargetRow: RawRow = {
+            ...targetRow,
+            originalName: remainingSources.length === 1 ? remainingSources[0].originalName : targetRow.originalName,
+            sales: roundFinance(Math.max(0, targetRow.sales - sourceToSeparate.sales)),
+            prizes: roundFinance(Math.max(0, targetRow.prizes - sourceToSeparate.prizes)),
+            sources: remainingSources,
+            isAliased: remainingSources.some(s => s.isAliased)
+        };
+
+        // 3. Crear la nueva fila individual para la taquilla separada
+        const newStandaloneRow: RawRow = {
+            vendorName: cleanName,
+            originalName: cleanName,
+            agencyName: sourceToSeparate.agencyName,
+            productName: targetRow.productName,
+            sales: sourceToSeparate.sales,
+            prizes: sourceToSeparate.prizes,
+            isAliased: false,
+            sources: [{
+                originalName: cleanName,
+                agencyName: sourceToSeparate.agencyName,
+                sales: sourceToSeparate.sales,
+                prizes: sourceToSeparate.prizes,
+                isAliased: false
+            }],
+            sourceRow: { ...(targetRow.sourceRow || {}) }
+        };
+
+        const newRows = [...session.rows];
+        newRows[rowIndex] = updatedTargetRow;
+        newRows.push(newStandaloneRow);
+
+        setSelectedRowIndices([]);
+        setSession({ ...session, rows: newRows });
     };
 
     const handleApplyBulkPercentages = (comm: number, part: number) => {
@@ -322,16 +432,35 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             if (!name || /^total/i.test(name) || name.startsWith('-')) return;
 
             let finalName = name;
+            let isAliased = false;
             if (sellerAliases[name]) {
                 const mappedSeller = allSellers.find(s => Number(s.id) === sellerAliases[name]);
-                if (mappedSeller) finalName = mappedSeller.name.toUpperCase();
+                if (mappedSeller) {
+                    finalName = mappedSeller.name.toUpperCase();
+                    isAliased = true;
+                }
             }
 
             const salesVal = parseAmount(row[manualSalesCol]);
             const prizesVal = manualPrizesCol !== -1 ? parseAmount(row[manualPrizesCol]) : 0;
             if (salesVal === 0 && prizesVal === 0) return;
 
-            rows.push({ vendorName: finalName, sales: salesVal, prizes: prizesVal, sourceRow: row });
+            const sourceItem: ConsolidatedSource = {
+                originalName: name,
+                sales: salesVal,
+                prizes: prizesVal,
+                isAliased
+            };
+
+            rows.push({
+                vendorName: finalName,
+                originalName: name,
+                isAliased,
+                sources: [sourceItem],
+                sales: salesVal,
+                prizes: prizesVal,
+                sourceRow: row
+            });
         });
 
         if (rows.length === 0) {
@@ -346,8 +475,12 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
             if (existing) {
                 existing.sales += row.sales;
                 existing.prizes += row.prizes;
+                if (row.sources && row.sources.length > 0) {
+                    existing.sources = [...(existing.sources || []), ...row.sources];
+                }
+                if (row.isAliased) existing.isAliased = true;
             } else {
-                consolidated.set(key, { ...row });
+                consolidated.set(key, { ...row, sources: row.sources ? [...row.sources] : [] });
             }
         }
 
@@ -366,6 +499,10 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
     // ─── Validación de Vendedores y Detección de Duplicados ──────────────────────
     const validateVendors = async () => {
         if (!session) return;
+        if (!session.productName || !session.productName.trim()) {
+            alert("Por favor selecciona o escribe el Producto en la cabecera antes de continuar con la importación.");
+            return;
+        }
         setLoading(true);
 
         try {
@@ -458,37 +595,39 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                         }
                     }
 
-                    if (!isConfigured) {
-                        // Buscar en la plantilla de defaults por producto (ej. PARLEY 2: 12%, PARLEY 3: 14%, etc.)
-                        if (commPct === 0 && partPct === 0) {
-                            const def = findProductDefaults(reqProd);
-                            commPct = def.commissionPct;
-                            partPct = def.partPct;
-                        }
-
-                        pendingProducts.push({
-                            productName: reqProd,
-                            currency: reqCurr,
-                            commissionPct: commPct,
-                            partPct: partPct,
-                            isConfiguredInDb: false
-                        });
+                    if (!isConfigured && commPct === 0 && partPct === 0) {
+                        const def = findProductDefaults(reqProd);
+                        commPct = def.commissionPct;
+                        partPct = def.partPct;
                     }
-                }
 
-                if (pendingProducts.length > 0 || !existingSeller) {
-                    missingVendorsList.push({
-                        name: vendorName,
-                        isExisting: !!existingSeller,
-                        mappedSellerId: null,
-                        commissionPct: pendingProducts[0]?.commissionPct ?? 10,
-                        partPct: pendingProducts[0]?.partPct ?? 10,
-                        products: pendingProducts
+                    pendingProducts.push({
+                        productName: reqProd,
+                        currency: reqCurr,
+                        commissionPct: commPct,
+                        partPct: partPct,
+                        isConfiguredInDb: isConfigured
                     });
                 }
+
+                // SIEMPRE incluir a cada vendedor para que el usuario pueda ver, asignar o ajustar porcentajes
+                const defs = findProductDefaults(session.productName);
+                missingVendorsList.push({
+                    name: vendorName,
+                    isExisting: !!existingSeller,
+                    mappedSellerId: existingSeller ? Number(existingSeller.id) : null,
+                    commissionPct: pendingProducts[0]?.commissionPct ?? defs.commissionPct,
+                    partPct: pendingProducts[0]?.partPct ?? defs.partPct,
+                    products: pendingProducts
+                });
             }
 
             if (missingVendorsList.length > 0) {
+                const activeProd = normalizeProductName(session.productName);
+                const prodDefaults = findProductDefaults(activeProd);
+                setBulkCommission(prodDefaults.commissionPct);
+                setBulkParticipation(prodDefaults.partPct);
+
                 setMissingVendors(missingVendorsList);
                 setStep('resolution');
             } else {
@@ -510,21 +649,29 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
         try {
             let updatedSession = { ...session, rows: [...session.rows] };
             let currentSellers = await api.getSellers();
+            const vendorOverrides = new Map<string, { commissionPct: number; partPct: number }>();
 
             for (const v of missingVendors) {
                 const normVendorName = normalizeSellerName(v.name);
                 const vendorRows = updatedSession.rows.filter(r => normalizeSellerName(r.vendorName) === normVendorName);
+                const userCommPct = Number(v.commissionPct ?? 0);
+                const userPartPct = Number(v.partPct ?? 0);
 
                 if (v.mappedSellerId) {
                     await addSellerAlias(v.mappedSellerId, v.name);
 
                     const mappedSeller = currentSellers.find(s => Number(s.id) === v.mappedSellerId);
                     if (mappedSeller) {
+                        const targetName = mappedSeller.name.toUpperCase();
                         updatedSession.rows = updatedSession.rows.map(r =>
                             normalizeSellerName(r.vendorName) === normVendorName
-                                ? { ...r, vendorName: mappedSeller.name.toUpperCase() }
+                                ? { ...r, vendorName: targetName }
                                 : r
                         );
+
+                        // Registrar override para este vendedor y su alias
+                        vendorOverrides.set(normVendorName, { commissionPct: userCommPct, partPct: userPartPct });
+                        vendorOverrides.set(normalizeSellerName(targetName), { commissionPct: userCommPct, partPct: userPartPct });
 
                         let needsUpdate = false;
                         const productsToConfigure = (v.products && v.products.length > 0)
@@ -532,9 +679,11 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                             : Array.from(new Set(vendorRows.map(r => normalizeProductName(r.productName || session.productName)))).map(pName => ({
                                 productName: pName,
                                 currency: normalizeCurrency(session.currency),
-                                commissionPct: v.commissionPct || 0,
-                                partPct: v.partPct || 0
+                                commissionPct: userCommPct,
+                                partPct: userPartPct
                             }));
+
+                        if (!mappedSeller.products) mappedSeller.products = [];
 
                         for (const item of productsToConfigure) {
                             const prodName = normalizeProductName(item.productName);
@@ -548,17 +697,20 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
                             const currName = normalizeCurrency(item.currency);
                             let currencyConfig = product.currencies.find(c => normalizeCurrency(String(c.name || c.id)) === currName);
+                            const itemComm = Number(item.commissionPct ?? userCommPct);
+                            const itemPart = Number(item.partPct ?? userPartPct);
+
                             if (!currencyConfig) {
                                 product.currencies.push({
                                     id: currName,
                                     name: currName,
-                                    commissionPct: item.commissionPct,
-                                    partPct: item.partPct
+                                    commissionPct: itemComm,
+                                    partPct: itemPart
                                 });
                                 needsUpdate = true;
                             } else {
-                                currencyConfig.commissionPct = item.commissionPct;
-                                currencyConfig.partPct = item.partPct;
+                                currencyConfig.commissionPct = itemComm;
+                                currencyConfig.partPct = itemPart;
                                 needsUpdate = true;
                             }
                         }
@@ -572,6 +724,8 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
                 const existingSeller = currentSellers.find(s => normalizeSellerName(s.name) === normVendorName);
 
+                vendorOverrides.set(normVendorName, { commissionPct: userCommPct, partPct: userPartPct });
+
                 if (existingSeller) {
                     let needsUpdate = false;
                     const productsToConfigure = (v.products && v.products.length > 0)
@@ -579,9 +733,11 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                         : Array.from(new Set(vendorRows.map(r => normalizeProductName(r.productName || session.productName)))).map(pName => ({
                             productName: pName,
                             currency: normalizeCurrency(session.currency),
-                            commissionPct: v.commissionPct || 0,
-                            partPct: v.partPct || 0
+                            commissionPct: userCommPct,
+                            partPct: userPartPct
                         }));
+
+                    if (!existingSeller.products) existingSeller.products = [];
 
                     for (const item of productsToConfigure) {
                         const prodName = normalizeProductName(item.productName);
@@ -595,17 +751,20 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
                         const currName = normalizeCurrency(item.currency);
                         let currencyConfig = product.currencies.find(c => normalizeCurrency(String(c.name || c.id)) === currName);
+                        const itemComm = Number(item.commissionPct ?? userCommPct);
+                        const itemPart = Number(item.partPct ?? userPartPct);
+
                         if (!currencyConfig) {
                             product.currencies.push({
                                 id: currName,
                                 name: currName,
-                                commissionPct: item.commissionPct,
-                                partPct: item.partPct
+                                commissionPct: itemComm,
+                                partPct: itemPart
                             });
                             needsUpdate = true;
                         } else {
-                            currencyConfig.commissionPct = item.commissionPct;
-                            currencyConfig.partPct = item.partPct;
+                            currencyConfig.commissionPct = itemComm;
+                            currencyConfig.partPct = itemPart;
                             needsUpdate = true;
                         }
                     }
@@ -619,14 +778,17 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                         : Array.from(new Set(vendorRows.map(r => normalizeProductName(r.productName || session.productName)))).map(pName => ({
                             productName: pName,
                             currency: normalizeCurrency(session.currency),
-                            commissionPct: v.commissionPct || 0,
-                            partPct: v.partPct || 0
+                            commissionPct: userCommPct,
+                            partPct: userPartPct
                         }));
 
                     const prodsMap = new Map<string, { id: string; name: string; currencies: any[] }>();
                     for (const item of productsToConfigure) {
                         const pName = normalizeProductName(item.productName);
                         const currName = normalizeCurrency(item.currency);
+                        const itemComm = Number(item.commissionPct ?? userCommPct);
+                        const itemPart = Number(item.partPct ?? userPartPct);
+
                         if (!prodsMap.has(pName)) {
                             prodsMap.set(pName, {
                                 id: `p-${pName.toLowerCase().replace(/\s/g, '-')}`,
@@ -639,8 +801,8 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                             pObj.currencies.push({
                                 id: currName,
                                 name: currName,
-                                commissionPct: item.commissionPct,
-                                partPct: item.partPct
+                                commissionPct: itemComm,
+                                partPct: itemPart
                             });
                         }
                     }
@@ -655,7 +817,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
             await reloadCatalogs();
             setSession(updatedSession);
-            await executeImport(updatedSession);
+            await executeImport(updatedSession, vendorOverrides);
         } catch (error: any) {
             console.error(error);
             alert(`Error durante la importación: ${error.message || error}`);
@@ -665,7 +827,10 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
     };
 
     // ─── Ejecución Final de la Importación ────────────────────────────────────────
-    const executeImport = async (validSession?: ImportSession) => {
+    const executeImport = async (
+        validSession?: ImportSession,
+        vendorOverrides?: Map<string, { commissionPct: number; partPct: number }>
+    ) => {
         const activeSession = validSession || session;
         if (!activeSession) return;
         setLoading(true);
@@ -702,6 +867,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
 
             for (const row of activeSession.rows) {
                 const normVendor = normalizeSellerName(row.vendorName);
+                const origVendor = row.originalName ? normalizeSellerName(row.originalName) : '';
                 const seller = currentSellers.find(s => normalizeSellerName(s.name) === normVendor);
                 if (!seller) continue;
 
@@ -716,14 +882,20 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                     normalizeCurrency(String(c.name || c.id)) === rowCurrency
                 );
 
-                // Si no existiera la configuración en memoria, tomar default
+                // Prioridad de porcentajes:
+                // 1) Override explícito confirmado por el usuario en la resolución
+                // 2) Configuración existente en BD para este vendedor, producto y moneda
+                // 3) Defaults por producto
+                const override = vendorOverrides?.get(normVendor) || (origVendor ? vendorOverrides?.get(origVendor) : undefined);
                 const defaultPercentages = findProductDefaults(rowProductName);
-                const comPct = currencyConfig
-                    ? Number(currencyConfig.commissionPct ?? 0)
-                    : defaultPercentages.commissionPct;
-                const partPct = currencyConfig
-                    ? Number(currencyConfig.partPct ?? 0)
-                    : defaultPercentages.partPct;
+
+                const comPct = override !== undefined
+                    ? override.commissionPct
+                    : (currencyConfig ? Number(currencyConfig.commissionPct ?? 0) : defaultPercentages.commissionPct);
+
+                const partPct = override !== undefined
+                    ? override.partPct
+                    : (currencyConfig ? Number(currencyConfig.partPct ?? 0) : defaultPercentages.partPct);
 
                 const comision = roundFinance(row.sales * (comPct / 100));
                 const neto = roundFinance(row.sales - row.prizes - comision);
@@ -841,6 +1013,7 @@ export const SalesImportModal: React.FC<SalesImportModalProps> = ({ onClose, onI
                             setBulkSaveAlias={setBulkSaveAlias}
                             onApplyManualGroup={handleApplyManualGroup}
                             onBulkMakeStandalone={handleBulkMakeStandalone}
+                            onSeparateSource={handleSeparateSource}
                             onOpenGroupingModal={(vendorName) => {
                                 const vendor = vendorName || (session.rows[0]?.vendorName || '');
                                 setGroupingSourceAgent(vendor);

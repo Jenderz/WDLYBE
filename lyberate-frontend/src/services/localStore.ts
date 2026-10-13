@@ -254,7 +254,7 @@ export const initLocalStore = () => {
         localStorage.setItem(KEYS.SELLERS, JSON.stringify(SEED_SELLERS));
         localStorage.setItem(KEYS.PAYMENTS, JSON.stringify(SEED_PAYMENTS));
         localStorage.setItem(KEYS.CURRENCIES, JSON.stringify(['DOLAR', 'PESO COLOMBIANA', 'BOLIVARES VENEZOLANOS']));
-        localStorage.setItem(KEYS.GLOBAL_PRODUCTS, JSON.stringify(['PARLEY BETM3', 'ANIMALITOS', 'LOTERIAS', 'AMERICANAS']));
+        localStorage.setItem(KEYS.GLOBAL_PRODUCTS, JSON.stringify(['GATO NEGRO', 'ANIMALITOS MAX PLAY', 'PARLEY BETM3', 'PARLEY INH', 'LOTERIAS MAX PLAY', 'TRIPLETA MAX PLAY', 'AMERICANAS', 'ANIMALITOS BETM3', 'LOTERIA POSNET', 'POSNET', 'NACIONALES', 'WORLDDEPORTES']));
         localStorage.setItem(KEYS.SALES, JSON.stringify(SEED_SALES));
         localStorage.setItem(KEYS.AGENCIES, JSON.stringify([]));
         localStorage.setItem(KEYS.WEEKLY_TICKETS, JSON.stringify([]));
@@ -275,7 +275,7 @@ export const initLocalStore = () => {
             localStorage.setItem(KEYS.CURRENCIES, JSON.stringify(['DOLAR', 'PESO COLOMBIANA', 'BOLIVARES VENEZOLANOS']));
         }
         if (!localStorage.getItem(KEYS.GLOBAL_PRODUCTS)) {
-            localStorage.setItem(KEYS.GLOBAL_PRODUCTS, JSON.stringify(['PARLEY BETM3', 'ANIMALITOS', 'LOTERIAS', 'AMERICANAS']));
+            localStorage.setItem(KEYS.GLOBAL_PRODUCTS, JSON.stringify(['GATO NEGRO', 'ANIMALITOS MAX PLAY', 'PARLEY BETM3', 'PARLEY INH', 'LOTERIAS MAX PLAY', 'TRIPLETA MAX PLAY', 'AMERICANAS', 'ANIMALITOS BETM3', 'LOTERIA POSNET', 'POSNET', 'NACIONALES', 'WORLDDEPORTES']));
         }
         if (!localStorage.getItem(KEYS.SYSTEM_PREFS)) {
             localStorage.setItem(KEYS.SYSTEM_PREFS, JSON.stringify({
@@ -548,7 +548,7 @@ export const deleteAvailableCurrency = (name: string) => {
 // --- Global Products ---
 
 export const getGlobalProducts = (): string[] => {
-    return JSON.parse(localStorage.getItem(KEYS.GLOBAL_PRODUCTS) || '["PARLEY BETM3", "ANIMALITOS", "LOTERIAS", "AMERICANAS"]');
+    return JSON.parse(localStorage.getItem(KEYS.GLOBAL_PRODUCTS) || '["PARLEY BETM3", "PARLEY INH", "ANIMALITOS", "LOTERIAS", "AMERICANAS"]');
 };
 
 export const addGlobalProduct = (name: string) => {

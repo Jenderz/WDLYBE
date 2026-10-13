@@ -52,13 +52,17 @@ export function normalizeCurrency(raw?: string | null): CanonicalCurrency {
  *   - PARLEY PD (Premio Directo / Derecho: "Parley PD", "Derecho", "Ventas por Derecho")
  */
 export function normalizeProductName(raw?: string | null): string {
-    if (!raw) return 'PARLEY';
+    if (!raw || !raw.trim()) return '';
     let s = raw.trim().toUpperCase().replace(/\s+/g, ' ');
 
     // 1. Detección y normalización de modalidades de Parley
-    if (s.includes('PARLEY') || s.includes('DERECHO') || s.startsWith('PD') || s.includes('INH')) {
-        // Parley INH (Instituto Nacional de Hipódromos)
-        if (s.includes('INH')) {
+    if (s.includes('PARLEY') || s.includes('DERECHO') || s.startsWith('PD') || s.includes('INH') || s.includes('ADMINWD') || s.includes('BETM3') || s.includes('CONSOLIDADO')) {
+        // Parley BETM3 (Consolidado / Betm3)
+        if (s.includes('BETM3') || s.includes('CONSOLIDADO')) {
+            return 'PARLEY BETM3';
+        }
+        // Parley INH (Instituto Nacional de Hipódromos / Admin WD)
+        if (s.includes('INH') || s.includes('ADMINWD') || s.includes('HIPICO')) {
             return 'PARLEY INH';
         }
         // Parley 4 o más
@@ -88,16 +92,21 @@ export function normalizeProductName(raw?: string | null): string {
     }
 
     // 2. Otros productos conocidos
-    if (s.includes('BETM3')) return 'PARLEY BETM3';
-    if (s.includes('LOTOREY') || s.includes('LOTERIAS') || s.includes('BANKLOT')) return 'LOTERIAS';
+    if (s.includes('MAXPLAY') || s.includes('MAX PLAY')) {
+        if (s.includes('LOTERIA')) return 'LOTERIAS MAX PLAY';
+        if (s.includes('TRIPLETA')) return 'TRIPLETA MAX PLAY';
+        return 'ANIMALITOS MAX PLAY';
+    }
     if (s.includes('ANIMALITO')) return 'ANIMALITOS';
-    if (s.includes('MAXPLAY')) return 'MAXPLAY';
+    if (s.includes('LOTOREY') || s.includes('LOTERIAS') || s.includes('BANKLOT')) return 'LOTERIAS';
+    if (s.includes('CONSOLIDADO')) return 'PARLEY BETM3';
+    if (s.includes('BETM3')) return 'PARLEY BETM3';
     if (s.includes('GALILEO')) return 'GALILEO';
     if (s.includes('POSNET')) return 'POSNET';
-    if (s.includes('GATO')) return 'GATO';
+    if (s.includes('GATO')) return 'GATO NEGRO';
     if (s.includes('NACIONAL')) return 'NACIONALES';
     if (s.includes('AMERICAN')) return 'AMERICANAS';
-    if (s.includes('WORLDDEPORTE') || s.includes('MASTERGREEN') || s.includes('ADMINWD')) return 'WORLDDEPORTES';
+    if (s.includes('WORLDDEPORTE') || s.includes('MASTERGREEN')) return 'WORLDDEPORTES';
 
     // Eliminar tildes y caracteres extraños
     return s
@@ -126,25 +135,31 @@ export function buildConfigKey(seller: string, product: string, currency: string
 
 /**
  * Plantillas de porcentajes por defecto sugeridos según el tipo de producto/modalidad.
- * Evita que productos no configurados previamente aparezcan en 0% obligando a reescribirlos.
+ * Basadas en los registros configurados en la base de datos de producción (currency_configs).
  */
 export const DEFAULT_PRODUCT_PERCENTAGES: Record<string, { commissionPct: number; partPct: number }> = {
-    'PARLEY 2':   { commissionPct: 12, partPct: 10 },
-    'PARLEY 3':   { commissionPct: 14, partPct: 10 },
-    'PARLEY 4+':  { commissionPct: 10, partPct: 10 },
-    'PARLEY PD':  { commissionPct: 15, partPct: 10 },
-    'PARLEY':     { commissionPct: 12, partPct: 10 },
-    'PARLEY INH': { commissionPct: 12, partPct: 10 },
-    'PARLEY BETM3':{ commissionPct: 12, partPct: 10 },
-    'LOTERIAS':   { commissionPct: 10, partPct: 0  },
-    'ANIMALITOS': { commissionPct: 10, partPct: 0  },
-    'AMERICANAS': { commissionPct: 10, partPct: 10 },
-    'MAXPLAY':    { commissionPct: 12, partPct: 10 },
-    'GALILEO':    { commissionPct: 10, partPct: 0  },
-    'POSNET':     { commissionPct: 10, partPct: 0  },
-    'GATO':       { commissionPct: 10, partPct: 0  },
-    'NACIONALES': { commissionPct: 10, partPct: 10 },
-    'WORLDDEPORTES': { commissionPct: 12, partPct: 10 },
+    'PARLEY 2':           { commissionPct: 12, partPct: 10 },
+    'PARLEY 3':           { commissionPct: 14, partPct: 10 },
+    'PARLEY 4+':          { commissionPct: 10, partPct: 10 },
+    'PARLEY PD':          { commissionPct: 15, partPct: 10 },
+    'PARLEY':             { commissionPct: 12, partPct: 10 },
+    'PARLEY INH':         { commissionPct: 10, partPct: 0  },
+    'PARLEY BETM3':       { commissionPct: 10, partPct: 0  },
+    'LOTERIAS':           { commissionPct: 10, partPct: 0  },
+    'ANIMALITOS':         { commissionPct: 10, partPct: 0  },
+    'ANIMALITOS BETM3':   { commissionPct: 12, partPct: 10 },
+    'ANIMALITOS MAX PLAY':{ commissionPct: 12, partPct: 10 },
+    'ANIMALITOS MAXPLAY': { commissionPct: 12, partPct: 10 },
+    'LOTERIAS MAX PLAY':  { commissionPct: 20, partPct: 0  },
+    'TRIPLETA MAX PLAY':  { commissionPct: 12, partPct: 10 },
+    'MAXPLAY':            { commissionPct: 12, partPct: 10 },
+    'AMERICANAS':         { commissionPct: 0,  partPct: 70 },
+    'GALILEO':            { commissionPct: 10, partPct: 0  },
+    'POSNET':             { commissionPct: 12, partPct: 0  },
+    'GATO NEGRO':         { commissionPct: 20, partPct: 0  },
+    'GATO':               { commissionPct: 20, partPct: 0  },
+    'NACIONALES':         { commissionPct: 8,  partPct: 0  },
+    'WORLDDEPORTES':      { commissionPct: 10, partPct: 0  },
 };
 
 /**
@@ -152,5 +167,5 @@ export const DEFAULT_PRODUCT_PERCENTAGES: Record<string, { commissionPct: number
  */
 export function findProductDefaults(productName: string): { commissionPct: number; partPct: number } {
     const norm = normalizeProductName(productName);
-    return DEFAULT_PRODUCT_PERCENTAGES[norm] || { commissionPct: 10, partPct: 10 };
+    return DEFAULT_PRODUCT_PERCENTAGES[norm] || DEFAULT_PRODUCT_PERCENTAGES[productName.toUpperCase().trim()] || { commissionPct: 10, partPct: 0 };
 }

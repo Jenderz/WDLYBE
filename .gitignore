@@ -7,3 +7,7 @@ build/
 Report-*.xls
 *.xls
 *.xlsx
+
+# Dumps SQL y respaldos locales sensibles
+*.sql
+!lyberate-backend/migrations/*.sql
