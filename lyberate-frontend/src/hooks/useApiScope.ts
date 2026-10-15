@@ -11,12 +11,12 @@ import { useAgencyMode } from '../context/AgencyContext';
 import {
     // ── Admin (global) endpoints ────────────────────────────
     getSellers, addSeller, updateSeller, deleteSeller,
-    getSales, addSale, deleteSale, updateSale, deleteSalesBatch,
-    getPayments, addPayment, updatePayment, updatePaymentStatus, deletePayment,
+    getSales, addSale, deleteSale, updateSale,
+    getPayments, addPayment, updatePayment, updatePaymentStatus,
     // ── Agency-scoped endpoints ─────────────────────────────
     getAgencySellers, addAgencySeller, updateAgencySeller, deleteAgencySeller,
-    getAgencySales, addAgencySale, deleteAgencySale, updateAgencySale, deleteAgencySalesBatch,
-    getAgencyPayments, addAgencyPayment, updateAgencyPayment, updateAgencyPaymentStatus, deleteAgencyPayment,
+    getAgencySales, addAgencySale, deleteAgencySale, updateAgencySale,
+    getAgencyPayments, addAgencyPayment, updateAgencyPayment, updateAgencyPaymentStatus,
 } from '../services/apiService';
 
 export function useApiScope() {
@@ -30,18 +30,16 @@ export function useApiScope() {
         deleteSeller: isAgency ? deleteAgencySeller  : deleteSeller,
 
         // Sales
-        getSales:         isAgency ? (() => getAgencySales()) : getSales,
-        addSale:          isAgency ? addAgencySale            : addSale,
-        deleteSale:       isAgency ? deleteAgencySale         : deleteSale,
-        updateSale:       isAgency ? updateAgencySale         : updateSale,
-        deleteSalesBatch: isAgency ? deleteAgencySalesBatch   : deleteSalesBatch,
+        getSales:       isAgency ? (() => getAgencySales())   : getSales,
+        addSale:        isAgency ? addAgencySale              : addSale,
+        deleteSale:     isAgency ? deleteAgencySale           : deleteSale,
+        updateSale:     isAgency ? updateAgencySale           : updateSale,
 
         // Payments
         getPayments:         isAgency ? (() => getAgencyPayments())  : getPayments,
         addPayment:          isAgency ? addAgencyPayment             : addPayment,
         updatePayment:       isAgency ? updateAgencyPayment          : updatePayment,
         updatePaymentStatus: isAgency ? updateAgencyPaymentStatus    : updatePaymentStatus,
-        deletePayment:       isAgency ? deleteAgencyPayment          : deletePayment,
 
         // Flag
         isAgencyMode: isAgency,

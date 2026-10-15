@@ -5,7 +5,6 @@ import {
     getWeeklyPeriods, dateToWeekId, getAvailableCurrencies,
     getPaymentMethods, getBanks
 } from '../../../services/apiService';
-import { todayISO } from '../../../utils/serverTime';
 
 interface FormApiOverrides {
     addPayment?: typeof defaultAddPayment;
@@ -46,7 +45,7 @@ export const useCollectionForm = (
 
     // Modal form states
     const [formOperationType, setFormOperationType] = useState<'income' | 'payout'>('income');
-    const [formDate, setFormDate] = useState(todayISO());
+    const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
     const [formSellerId, setFormSellerId] = useState('');
     const [formCurrency, setFormCurrency] = useState('DOLAR');
     const [formAmount, setFormAmount] = useState<number | ''>('');
@@ -95,7 +94,6 @@ export const useCollectionForm = (
         setFormReference('');
         setFormBank('');
         setFormSellerId('');
-        setFormDate(todayISO());
         setEditingPayment(null);
     };
 
@@ -133,13 +131,11 @@ export const useCollectionForm = (
         if (!editingPayment) return;
         setEditConfirmLoading(true);
         try {
-            const paymentDate = formDate || todayISO();
-            const weekId = dateToWeekId(paymentDate);
-            const weekLabel = getWeeklyPeriods([paymentDate]).find(p => p.id === weekId)?.label || '';
+            const paymentDate = formDate || new Date().toISOString().split('T')[0];
             await updatePayment(editingPayment.id, {
                 sellerId: formSellerId,
-                week: weekLabel,
-                weekId: weekId,
+                week: getWeeklyPeriods([paymentDate])[0]?.label || '',
+                weekId: dateToWeekId(paymentDate),
                 amount: Math.abs(Number(formAmount)),
                 currency: formCurrency,
                 bank: formBank,
@@ -170,15 +166,13 @@ export const useCollectionForm = (
         }
 
         const enteredAmount = Math.abs(Number(formAmount));
-        const paymentDate = formDate || todayISO();
-        const weekId = dateToWeekId(paymentDate);
-        const weekLabel = getWeeklyPeriods([paymentDate]).find(p => p.id === weekId)?.label || '';
+        const paymentDate = formDate || new Date().toISOString().split('T')[0];
         const basePayload = {
             vendorId: selectedSeller?.id || '',
             vendorName: selectedSeller?.name || '',
             sellerId: formSellerId,
-            week: weekLabel,
-            weekId: weekId,
+            week: getWeeklyPeriods([paymentDate])[0]?.label || '',
+            weekId: dateToWeekId(paymentDate),
             currency: formCurrency,
             bank: formBank,
             method: formMethod,

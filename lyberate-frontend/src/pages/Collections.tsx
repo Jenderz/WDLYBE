@@ -21,7 +21,7 @@ import { PaymentRegistrationModal } from './Collections/components/PaymentRegist
 
 export const Collections = () => {
     const api = useApiScope();
-    const { payments, sellers, sales, isLoading, error, refreshData } = useCollectionsData({
+    const { payments, sellers, sales, isLoading, refreshData } = useCollectionsData({
         getSellers: api.getSellers,
         getSales: api.getSales,
         getPayments: api.getPayments,
@@ -40,47 +40,18 @@ export const Collections = () => {
     });
 
     const handleApprove = async (id: string) => {
-        const ok = await api.updatePaymentStatus(id, 'approved');
-        if (!ok) {
-            alert('No se pudo aprobar el pago. Verifica la conexión e intenta de nuevo.');
-            return;
-        }
+        await api.updatePaymentStatus(id, 'approved');
         refreshData();
     };
 
     const handleReject = async (id: string, note: string) => {
-        const ok = await api.updatePaymentStatus(id, 'rejected', note);
-        if (!ok) {
-            alert('No se pudo rechazar el pago. Verifica la conexión e intenta de nuevo.');
-            return;
-        }
+        await api.updatePaymentStatus(id, 'rejected', note);
         refreshData();
-    };
-
-    const handleDelete = async (payment: Payment) => {
-        const label = `${payment.vendorName || 'Vendedor'} — ${payment.currency} ${payment.amount.toFixed(2)} (${payment.date})`;
-        const confirmed = window.confirm(
-            `⚠️ ¿Eliminar esta recaudación?\n\n${label}\n\nSi estaba aprobada, se revertirá del balance semanal. Esta acción no se puede deshacer.`
-        );
-        if (!confirmed) return;
-
-        try {
-            await api.deletePayment(payment.id);
-            refreshData();
-        } catch (err: any) {
-            alert(`Error al eliminar el pago: ${err?.message || 'Error desconocido'}`);
-        }
     };
 
     return (
         <div className="space-y-6 animate-fade-in pb-safe">
             <CollectionHeader onNewPayment={() => form.setIsModalOpen(true)} />
-
-            {error && (
-                <div className="glass-panel p-4 rounded-2xl border border-red-500/30 bg-red-500/10 text-red-500 text-sm font-semibold flex items-center gap-2">
-                    ⚠️ {error}
-                </div>
-            )}
 
             <PaymentRegistrationModal
                 sellers={sellers}
@@ -117,7 +88,6 @@ export const Collections = () => {
                     onOpenProof={(src) => setProofLightbox(src)}
                     onSelectTicket={setSelectedTicket}
                     onEditPayment={(payment) => form.startEditPayment(payment)}
-                    onDeletePayment={handleDelete}
                 />
             )}
 

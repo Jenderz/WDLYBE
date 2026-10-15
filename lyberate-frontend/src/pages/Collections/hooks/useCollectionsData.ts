@@ -16,7 +16,6 @@ export const useCollectionsData = (apiOverrides?: ApiOverrides) => {
     const [sellers, setSellers] = useState<Seller[]>([]);
     const [sales, setSales] = useState<Sale[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
 
     const refreshData = useCallback(async () => {
         setIsLoading(true);
@@ -34,9 +33,6 @@ export const useCollectionsData = (apiOverrides?: ApiOverrides) => {
             setPayments(enrichedPayments);
             setSales(s);
             setSellers(sl);
-            setError(null);
-        } catch (err: any) {
-            setError(err?.message || 'No se pudieron cargar los datos de recaudaciones.');
         } finally {
             setIsLoading(false);
         }
@@ -51,7 +47,6 @@ export const useCollectionsData = (apiOverrides?: ApiOverrides) => {
         sellers,
         sales,
         isLoading,
-        error,
         refreshData,
     };
 };

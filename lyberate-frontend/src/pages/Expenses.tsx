@@ -4,7 +4,6 @@ import { getExpenses, addExpense, deleteExpense, Expense, ExpenseType, PaymentMe
 import { useSmartTable } from '../hooks/useSmartTable';
 import { TablePaginator } from '../components/SmartTable/TablePaginator';
 import { TableSkeleton } from '../components/SmartTable/TableSkeleton';
-import { todayISO } from '../utils/serverTime';
 
 const EXPENSE_TYPES: ExpenseType[] = ['Operativo', 'Nomina', 'Servicios', 'Otros'];
 const PAYMENT_METHODS: PaymentMethod[] = ['Transferencia', 'Zelle', 'Pago Móvil', 'Efectivo', 'Otro'];
@@ -26,7 +25,7 @@ export const Expenses = () => {
     const [isLoadingExpenses, setIsLoadingExpenses] = useState(true);
 
     // Form state
-    const [date, setDate] = useState(todayISO());
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [type, setType] = useState<ExpenseType>('Operativo');
     const [concept, setConcept] = useState('');
     const [method, setMethod] = useState<PaymentMethod>('Transferencia');
@@ -59,7 +58,7 @@ export const Expenses = () => {
     } = useSmartTable(expenses, { defaultPageSize: 40 });
 
     const resetForm = () => {
-        setDate(todayISO());
+        setDate(new Date().toISOString().split('T')[0]);
         setType('Operativo');
         setConcept('');
         setMethod('Transferencia');

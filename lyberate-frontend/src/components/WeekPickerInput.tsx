@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { getWeekBounds } from '../hooks/useWeeklyFilter';
-import { now } from '../utils/serverTime';
 
 interface WeekPickerInputProps {
     value: string;               // "YYYY-MM-DD"
@@ -37,7 +36,7 @@ export const WeekPickerInput = ({
 }: WeekPickerInputProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [viewMonth, setViewMonth] = useState(() => {
-        const d = value ? new Date(value + 'T12:00:00') : now();
+        const d = value ? new Date(value + 'T12:00:00') : new Date();
         return { year: d.getFullYear(), month: d.getMonth() };
     });
     const containerRef = useRef<HTMLDivElement>(null);
@@ -115,7 +114,7 @@ export const WeekPickerInput = ({
         });
     };
 
-    const today = now();
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const isModal = variant === 'modal';

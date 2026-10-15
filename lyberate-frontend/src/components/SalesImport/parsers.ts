@@ -5,7 +5,6 @@ import {
     normalizeProductName,
     normalizeSellerName
 } from '../../utils/importNormalize';
-import { todayISO } from '../../utils/serverTime';
 
 export const parseAmount = (val: any): number => {
     if (val === null || val === undefined) return 0;
@@ -400,7 +399,7 @@ export const analyzeImportData = (
                         fileName,
                         productName: betm3Product,
                         currency: betm3Currency,
-                        date: betm3Date || todayISO(),
+                        date: betm3Date || new Date().toISOString().split('T')[0],
                         rows: Array.from(consolidated.values()),
                         detectedType: 'betm3'
                     },
@@ -592,7 +591,7 @@ export const analyzeImportData = (
                         fileName,
                         productName: finalSessionProduct,
                         currency: sessionCurrency,
-                        date: fileDate || todayISO(),
+                        date: fileDate || new Date().toISOString().split('T')[0],
                         rows: mgRows,
                         detectedType
                     },
@@ -826,7 +825,7 @@ export const analyzeImportData = (
                         fileName,
                         productName,
                         currency: forcedCurrency || 'DOLAR',
-                        date: todayISO(),
+                        date: new Date().toISOString().split('T')[0],
                         rows: consolidatedRows,
                         detectedType
                     },
@@ -846,7 +845,7 @@ export const analyzeImportData = (
         detectedType = 'maxplay';
         const maxplayProduct = 'ANIMALITOS MAX PLAY';
         const maxplayCurrency = detectFileCurrency(fileName, contentStr) || 'BOLIVARES VENEZOLANOS';
-        const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || todayISO();
+        const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || new Date().toISOString().split('T')[0];
 
         let taqIdx = -1, salesIdx = -1, prizesIdx = -1, commIdx = -1, partIdx = -1;
         let headerRowIndex = -1;
@@ -955,7 +954,7 @@ export const analyzeImportData = (
         detectedType = 'gato';
         const gatoProduct = 'GATO NEGRO';
         const gatoCurrency = detectFileCurrency(fileName, contentStr) || 'BOLIVARES VENEZOLANOS';
-        const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || todayISO();
+        const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || new Date().toISOString().split('T')[0];
 
         const isByAgencia = firstRowStr.includes('AGENCIA') || contentStr.includes('"AGENCIA"');
 
@@ -1202,7 +1201,7 @@ export const analyzeImportData = (
     }
     const consolidatedRows = Array.from(consolidated.values());
 
-    const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || todayISO();
+    const fileDate = extractDateFromCells(data) || extractDateFromFilename(fileName) || new Date().toISOString().split('T')[0];
 
     return {
         session: {
